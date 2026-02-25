@@ -1,0 +1,14 @@
+az\tickit\TickitApplication.class
+az\tickit\security\UserDetailsServiceImpl.class
+az\tickit\user\UserController.class
+az\tickit\auth\AuthController.class
+az\tickit\auth\AuthService.class
+az\tickit\security\JwtAuthenticationFilter.class
+az\tickit\user\UserMeResponse.class
+az\tickit\config\SecurityConfig.class
+az\tickit\user\User.class
+az\tickit\auth\dto\RegisterRequest.class
+az\tickit\security\JwtService.class
+az\tickit\user\UserRepository.class
+az\tickit\auth\dto\AuthResponse.class
+az\tickit\auth\dto\LoginRequest.class

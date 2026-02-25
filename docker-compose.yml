@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  tickit-db:
+    image: mongo:latest
+    container_name: tickit-db
+    restart: always
+    volumes:
+      - ./mongo-data:/data/db
+    # Порты не открываем наружу для безопасности!
+
+  tickit-backend:
+    build: ./backend
+    container_name: tickit-backend
+    depends_on:
+      - tickit-db
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://tickit-db:27017/tickit
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./uploads:/app/uploads
+    restart: always
+
+  tickit-frontend:
+    build: ./frontend
+    container_name: tickit-frontend
+    ports:
+      - "3000:3000"
+    restart: always
