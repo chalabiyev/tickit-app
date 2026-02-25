@@ -351,6 +351,27 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
     rowLabelType: 'letters' as 'letters' | 'numbers'
   })
 
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      // Если у тебя есть функция для показа тостов (уведомлений), вызови её:
+      setToast({ 
+        show: true, 
+        message: "Link copied to clipboard!", 
+        type: "success" 
+      });
+      
+      // Скрыть уведомление через 3 секунды
+      setTimeout(() => setToast({ ...toast, show: false }), 3000);
+    } catch (err) {
+      setToast({ 
+        show: true, 
+        message: "Failed to copy link", 
+        type: "error" 
+      });
+    }
+  };
+
   const [ticketDesign, setTicketDesign] = useState<TicketDesign>({
     bgColor: "#121212", bgImage: null, bgOverlay: 0,
     elements: [
@@ -440,7 +461,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       })
       if (!response.ok) { const errorData = await response.json().catch(() => null); throw new Error(errorData?.message || "Failed to create event. Server rejected the payload.") }
       const data = await response.json()
-      setGeneratedLink(`tickit.az/e/${data.shortLink}`)
+      setGeneratedLink(`72.60.135.9:3000/e/${data.shortLink}`)
       setCurrentStep(6) 
     } catch (error: any) { console.error(error); setErrorMessage(error.message) } 
     finally { setIsSubmitting(false) }
@@ -561,10 +582,21 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                 <div className="h-24 w-24 rounded-full bg-green-500/10 flex items-center justify-center mb-8 ring-8 ring-green-500/5"><CheckCircle2 className="h-12 w-12 text-green-500" /></div>
                 <h2 className="text-3xl font-black tracking-tight mb-3 text-foreground">Event Published!</h2>
                 <p className="text-base text-muted-foreground max-w-md mb-10 leading-relaxed">Your event is now live. Copy the link below to start selling tickets immediately.</p>
-                <div className="flex items-center gap-3 w-full max-w-md p-2 rounded-2xl bg-secondary border border-border shadow-inner">
-                  <div className="bg-background px-4 py-3.5 rounded-xl text-sm font-bold font-mono text-foreground flex-1 truncate text-left border shadow-sm">{generatedLink}</div>
-                  <Button size="lg" className="shrink-0 gap-2 rounded-xl px-6 font-bold"><Copy className="h-4 w-4" />Copy</Button>
-                </div>
+                  <div className="flex items-center gap-3 w-full max-w-md p-2 rounded-2xl bg-secondary border border-border shadow-inner">
+                    <div className="bg-background px-4 py-3.5 rounded-xl text-sm font-bold font-mono text-foreground flex-1 truncate text-left border shadow-sm">
+                      {generatedLink}
+                    </div>
+                    
+                    {/* Добавляем onClick={handleCopyLink} сюда */}
+                    <Button 
+                      size="lg" 
+                      className="shrink-0 gap-2 rounded-xl px-6 font-bold"
+                      onClick={handleCopyLink}
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </Button>
+                  </div>
                 <div className="mt-12 flex gap-4 w-full max-w-md">
                   <Button variant="outline" size="lg" className="flex-1 gap-2 border-2 font-bold"><Share2 className="h-4 w-4" />Share</Button>
                   <Button size="lg" variant="secondary" onClick={onBack} className="flex-1 font-bold">Dashboard</Button>
