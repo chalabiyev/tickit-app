@@ -119,7 +119,7 @@ export default function PublicEventPage() {
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const res = await fetch(`http://72.60.135.9:8080/api/v1/events/s/${shortLink}`)
+        const res = await fetch(`http://localhost:8080/api/v1/events/s/${shortLink}`)
         if (!res.ok) throw new Error("Event not found")
         const data = await res.json()
 
@@ -161,7 +161,7 @@ export default function PublicEventPage() {
   return (
     <div className="min-h-screen bg-background pb-20 relative">
       <div className="w-full h-[40vh] md:h-[50vh] relative overflow-hidden bg-secondary/20">
-        <img src={event.coverImageUrl ? `http://72.60.135.9:8080${event.coverImageUrl}` : DEFAULT_COVER} className="w-full h-full object-cover" crossOrigin="anonymous"/>
+        <img src={event.coverImageUrl ? `http://localhost:8080${event.coverImageUrl}` : DEFAULT_COVER} className="w-full h-full object-cover" crossOrigin="anonymous"/>
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
       </div>
 

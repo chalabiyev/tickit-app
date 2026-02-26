@@ -250,7 +250,26 @@ export const translations: Record<Locale, Record<string, string>> = {
     addLogo: "Loqo əlavə et",
     smartTags: "Ağıllı Teqlər (Avtomatik dolur)",
     autoFillDesc: "Ağıllı teqlər alıcının məlumatları ilə avtomatik doldurulacaq.",
-    backToElements: "Elementlərə qayıt"
+    backToElements: "Elementlərə qayıt",
+    // Event Summary 
+    guestPreview: "Qonaq Önizləməsi",
+    eventSummary: "Tədbir Xülasəsi",
+    private: "Özəl",
+    public: "İctimai",
+    expectedRevenue: "Gözlənilən Gəlir",
+    seatsCount: "yer",
+    unnamed: "Adlandırılmayıb",
+    // Steps
+    step_mainInfo: "Əsas Məlumat",
+    step_ticketTypes: "Bilet Növləri",
+    step_places: "Məkan",
+    step_buyerQuestions: "İştirakçı",
+    step_ticketDesign: "Bilet Dizaynı",
+    step_preview: "Önizləmə",
+    step_payment: "Ödəniş",
+    step_success: "Hazırdır",
+    publish: "Dərc et",
+    processing: "Gözləyin..."
   },
   ru: {
     dashboard: "Панель",
@@ -499,7 +518,26 @@ export const translations: Record<Locale, Record<string, string>> = {
     addLogo: "Добавить логотип",
     smartTags: "Смарт-теги (Автозаполнение)",
     autoFillDesc: "Смарт-теги автоматически заполнятся данными покупателя.",
-    backToElements: "Назад к элементам"
+    backToElements: "Назад к элементам",
+    // Event Summary
+    guestPreview: "Превью билета",
+    eventSummary: "Итоги мероприятия",
+    private: "Приватное",
+    public: "Публичное",
+    expectedRevenue: "Ожидаемая выручка",
+    seatsCount: "мест(а)",
+    unnamed: "Без названия",
+    // Steps
+    step_mainInfo: "Основное",
+    step_ticketTypes: "Типы билетов",
+    step_places: "Рассадка",
+    step_buyerQuestions: "Анкета",
+    step_ticketDesign: "Дизайн билета",
+    step_preview: "Превью",
+    step_payment: "Оплата",
+    step_success: "Готово",
+    publish: "Опубликовать",
+    processing: "Обработка..."
   },
   tr: {
     dashboard: "Panel",
@@ -748,7 +786,26 @@ export const translations: Record<Locale, Record<string, string>> = {
     addLogo: "Logo Ekle",
     smartTags: "Akıllı Etiketler (Otomatik)",
     autoFillDesc: "Akıllı etiketler alıcı verileriyle otomatik olarak doldurulur.",
-    backToElements: "Elemanlara Dön"
+    backToElements: "Elemanlara Dön",
+    // Event Summary
+    guestPreview: "Misafir Önizlemesi",
+    eventSummary: "Etkinlik Özeti",
+    private: "Özel",
+    public: "Herkese Açık",
+    expectedRevenue: "Beklenen Gelir",
+    seatsCount: "koltuk",
+    unnamed: "İsimsiz",
+    // Steps
+    step_mainInfo: "Genel Bilgi",
+    step_ticketTypes: "Bilet Türleri",
+    step_places: "Oturma Planı",
+    step_buyerQuestions: "Katılımcı",
+    step_ticketDesign: "Bilet Tasarımı",
+    step_preview: "Önizleme",
+    step_payment: "Ödeme",
+    step_success: "Tamamlandı",
+    publish: "Yayınla",
+    processing: "İşleniyor..."
   },
 }
 

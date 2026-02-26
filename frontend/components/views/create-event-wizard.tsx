@@ -8,23 +8,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   ArrowLeft, ArrowRight, Check, MapPin, Upload, Plus, Trash2, 
-  CreditCard, Search, Monitor, Lock, Globe, Clock,
+  CreditCard, Monitor, Lock, Globe, Clock,
   CheckCircle2, Copy, Share2, AlertCircle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-import { TicketDesignEditor, type TicketDesign } from "./TicketDesignEditor"
+import { TicketDesignEditor, type TicketDesign } from "./create-event/TicketDesignEditor"
 import { StepIndicator } from "./create-event/StepIndicator"
-import { MobileTicketMockup } from "./create-event/MobileTicketMockup"
 import { SeatMapGrid } from "./create-event/SeatMapGrid"
 import { LocationPicker } from "./create-event/LocationPicker"
 import { BuyerQuestionsStep, type BuyerQuestion } from "./create-event/BuyerQuestionsStep"
+import { EventSummaryStep } from "./create-event/EventSummaryStep"
 
 interface CreateEventWizardProps { onBack: () => void }
 export interface TicketTier { id: number | string; name: string; price: number; quantity: number; color: string }
@@ -59,7 +58,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
   const [eventTitle, setEventTitle] = useState("")
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState("")
-  const [customCategory, setCustomCategory] = useState("") // НОВОЕ СОСТОЯНИЕ ДЛЯ "OTHER"
+  const [customCategory, setCustomCategory] = useState("")
   const [eventDate, setEventDate] = useState("")
   const [startTime, setStartTime] = useState("")
   const [endTime, setEndTime] = useState("")
@@ -85,14 +84,14 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
   })
 
   const [ticketDesign, setTicketDesign] = useState<TicketDesign>({
-    bgColor: "#121212", bgImage: null, bgOverlay: 0,
+    bgColor: "#09090b", bgImage: null, bgOverlay: 0, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0,
     elements: [
-      { id: 'qr-1', type: 'qr', x: 100, y: 380, content: 'QR_CODE', color: '#ffffff', fontSize: 120, fontWeight: 'normal' },
-      { id: 't-1', type: 'text', x: 20, y: 40, content: '{{Event_Name}}', color: '#ffffff', fontSize: 28, fontWeight: 'bold', fontFamily: 'sans', textAlign: 'left' },
-      { id: 't-2', type: 'text', x: 20, y: 85, content: '{{Event_Date}} • {{Location}}', color: '#a1a1aa', fontSize: 12, fontWeight: 'normal', fontFamily: 'sans', textAlign: 'left' },
-      { id: 't-3', type: 'text', x: 20, y: 150, content: '{{Guest_Name}}', color: '#ffffff', fontSize: 20, fontWeight: 'normal', fontFamily: 'mono', textAlign: 'left' },
-      { id: 't-4', type: 'text', x: 20, y: 180, content: '{{Ticket_Type}}', color: '#3b82f6', fontSize: 16, fontWeight: 'bold', fontFamily: 'sans', textAlign: 'left' },
-    ]
+      { id: 'qr-1', type: 'qr', x: 120, y: 460, content: 'QR_CODE', color: '#ffffff', fontSize: 120, fontWeight: 'normal' }, 
+      { id: 't-1', type: 'text', x: 24, y: 100, content: '{{Event_Name}}', color: '#ffffff', fontSize: 32, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }, 
+      { id: 't-2', type: 'text', x: 24, y: 150, content: '{{Event_Date}} • {{Location}}', color: '#a1a1aa', fontSize: 14, fontWeight: 'normal', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }, 
+      { id: 't-3', type: 'text', x: 24, y: 220, content: '{{Guest_Name}}', color: '#ffffff', fontSize: 24, fontWeight: 'bold', fontFamily: '"Courier New", Courier, monospace', textAlign: 'left', width: 312 }, 
+      { id: 't-4', type: 'text', x: 24, y: 260, content: '{{Ticket_Type}} • {{Seat_Info}}', color: '#3b82f6', fontSize: 16, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }
+    ] 
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -130,7 +129,6 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       if (!description.trim()) return setStepError(t(locale, "errDescReq") || "Please enter a Description.");
       
       if (!category) return setStepError(t(locale, "errCatReq") || "Please select a Category.");
-      // НОВАЯ ПРОВЕРКА ДЛЯ КАСТОМНОЙ КАТЕГОРИИ
       if (category === "other" && !customCategory.trim()) return setStepError(t(locale, "errCustomCatReq") || "Please specify your custom category.");
 
       if (!eventDate) return setStepError(t(locale, "errDateReq") || "Please select the Event Date.");
@@ -148,12 +146,10 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       if (hasInvalidTier) return setStepError(t(locale, "errInvalidTier") || "Please ensure all ticket tiers have a name, a valid price, and quantity of at least 1.");
     }
     
-    // ДОБАВЛЯЕМ ПРОВЕРКУ ДЛЯ ШАГА 2 (КАРТА)
     if (currentStep === 2 && isReservedSeating) {
       const seats = Object.values(seatMapData);
       const totalSeatsOnMap = seats.length;
       
-      // 1. Проверяем, хватает ли вообще кресел
       if (totalSeatsOnMap < derivedCapacity) {
         const errorMsg = (t(locale, "errNotEnoughSeats") || "You need at least {req} seats on the map. You only have {curr}.")
           .replace("{req}", derivedCapacity.toString())
@@ -161,7 +157,6 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
         return setStepError(errorMsg);
       }
 
-      // 2. Проверяем, остались ли "серые" (неразмеченные) кресла
       const unassignedSeats = seats.filter(seat => seat.tierId === null).length;
       if (unassignedSeats > 0) {
         const errorMsg = (t(locale, "errUnassignedSeats") || "Please assign a ticket type to all seats. You still have {unassigned} unassigned seat(s).")
@@ -178,9 +173,9 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
     setIsUploading(true); const formData = new FormData(); formData.append("file", file)
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData })
+      const response = await fetch("http://localhost:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData })
       if (!response.ok) throw new Error("Upload failed")
-      const data = await response.json(); setCoverImageUrl(`http://72.60.135.9:8080${data.url}`)
+      const data = await response.json(); setCoverImageUrl(`http://localhost:8080${data.url}`)
     } catch (error) { showToast("Şəkil yüklənə bilmədi / Error uploading image", "error") } 
     finally { setIsUploading(false) }
   }
@@ -194,7 +189,6 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
     const payload = {
       title: eventTitle, 
       description: description, 
-      // ЕСЛИ ВЫБРАНО OTHER - ОТПРАВЛЯЕМ КАСТОМНЫЙ ТЕКСТ
       category: category === "other" ? customCategory.trim() : category, 
       ageRestriction: ageRestriction,
       eventDate: eventDate, startTime: formattedStartTime, endTime: formattedEndTime,
@@ -204,37 +198,54 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       isReservedSeating: isReservedSeating, seats: isReservedSeating ? formattedSeats : [],
       seatMapConfig: seatMapConfig, 
       ticketDesign: ticketDesign,
-      buyerQuestions: buyerQuestions, // <-- ВОТ ЭТО ДОБАВИТЬ
+      buyerQuestions: buyerQuestions, 
     }
 
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://72.60.135.9:8080/api/v1/events", {
+      const response = await fetch("http://localhost:8080/api/v1/events", {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload)
       })
       if (!response.ok) { const errorData = await response.json().catch(() => null); throw new Error(errorData?.message || "Failed to create event. Server rejected the payload.") }
       const data = await response.json()
-      setGeneratedLink(`72.60.135.9:3000/e/${data.shortLink}`)
-      setCurrentStep(6) 
+      setGeneratedLink(`localhost:3000/e/${data.shortLink}`)
+      setCurrentStep(7)
     } catch (error: any) { console.error(error); setErrorMessage(error.message) } 
     finally { setIsSubmitting(false) }
   }
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full relative">
-      {currentStep < 6 && (
-        <div className="flex flex-col gap-4">
-          <Button variant="ghost" size="sm" className="gap-1.5 self-start text-muted-foreground -ml-2 hover:bg-secondary" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" /> {t(locale, "backToEvents") || "Back to Events"}
-          </Button>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground whitespace-nowrap">{t(locale, "createNewEvent") || "Create New Event"}</h1>
+      
+      {/* 1. БЛОК ВЕРХНЕЙ ШАПКИ И ИНДИКАТОРА ШАГОВ (Находится НАД карточкой) */}
+      {currentStep < 7 && (
+        <div className="flex flex-col gap-6 w-full">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2 h-10 px-4 rounded-xl border-border/60 shadow-sm text-muted-foreground hover:text-foreground shrink-0" 
+              onClick={onBack}
+            >
+              <ArrowLeft className="h-4 w-4" /> 
+              <span className="hidden sm:inline font-semibold">{t(locale, "backToEvents") || "Back to Events"}</span>
+            </Button>
+            
+            <div className="h-6 w-px bg-border hidden sm:block shrink-0" />
+            
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground truncate">
+              {t(locale, "createNewEvent") || "Create New Event"}
+            </h1>
+          </div>
+
+          <div className="w-full bg-card/80 backdrop-blur border border-border/60 rounded-[2rem] px-2 py-4 sm:px-6 sm:py-6 shadow-sm overflow-hidden">
             <StepIndicator currentStep={currentStep} steps={STEPS} />
           </div>
         </div>
       )}
 
+      {/* 2. БЛОК ОСНОВНОГО КОНТЕНТА (Внутри карточки) */}
       <Card className="border-border/60 shadow-md overflow-hidden bg-card/50 backdrop-blur-sm">
         <CardContent className="p-0 sm:p-8">
           <div className="p-5 sm:p-0">
@@ -247,7 +258,6 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                   <div className="flex flex-col gap-5 sm:flex-row">
                     <div className="flex flex-col gap-2.5 flex-1 max-w-[250px]">
                       <Label className="text-sm font-semibold">{t(locale, "category") || "Category"} <span className="text-destructive">*</span></Label>
-                      {/* НОВОЕ ПОВЕДЕНИЕ ВЫБОРА КАТЕГОРИИ */}
                       <Select value={category} onValueChange={setCategory}>
                         <SelectTrigger className="h-11"><SelectValue placeholder={t(locale, "selectCategory")} /></SelectTrigger>
                         <SelectContent>{categories.map((cat) => (<SelectItem key={cat} value={cat}>{t(locale, cat) || cat}</SelectItem>))}</SelectContent>
@@ -283,8 +293,6 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                     </div>
                     {isPhysical && (
                       <div className="flex flex-col gap-5 mt-2 animate-in fade-in slide-in-from-top-2">
-                        
-                        {/* Поле: Название места (Məkan adı) */}
                         <div className="flex flex-col gap-2.5">
                           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                             {t(locale, "venueName") || "Venue Name"} <span className="text-destructive">*</span>
@@ -296,15 +304,12 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                             onChange={(e) => setVenueName(e.target.value)} 
                           />
                         </div>
-
-                        {/* Поле: Карта и Адрес (Ünvan) */}
                         <div className="flex flex-col gap-2.5">
                           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                             {t(locale, "address") || "Address"} <span className="text-destructive">*</span>
                           </Label>
                           <LocationPicker address={address} setAddress={setAddress} />
                         </div>
-
                       </div>
                     )}
                   </div>
@@ -312,7 +317,6 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                     <Label className="text-base font-bold">{t(locale, "privacySettings") || "Privacy Settings"}</Label>
                     
                     <div className="flex flex-col gap-3">
-                      {/* Public Option */}
                       <div 
                         onClick={() => setIsPrivate(false)}
                         className={cn("flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all", !isPrivate ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/40 bg-secondary/10")}
@@ -325,8 +329,6 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                           <span className="text-xs text-muted-foreground leading-relaxed">{t(locale, "publicEventDesc") || "Event will be listed on the main Tickit platform for everyone."}</span>
                         </div>
                       </div>
-
-                      {/* Private Option */}
                       <div 
                         onClick={() => setIsPrivate(true)}
                         className={cn("flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all", isPrivate ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/40 bg-secondary/10")}
@@ -424,10 +426,15 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
             )}
 
             {currentStep === 5 && (
-              <div className="flex flex-col gap-10 lg:flex-row lg:gap-16 animate-in fade-in duration-300">
-                <div className="flex flex-col gap-6 mx-auto lg:mx-0 shrink-0 w-full max-w-[300px]"><h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground text-center lg:text-left">Guest Preview</h3><MobileTicketMockup eventName={eventTitle} location={isPhysical ? (venueName || address) : "Online Event"} date={eventDate} startTime={startTime} /></div>
-                <div className="flex-1 flex flex-col gap-8"><div className="flex items-center justify-between border-b pb-4"><h3 className="text-2xl font-bold text-foreground">Event Summary</h3><Badge variant={isPrivate ? "secondary" : "default"} className="px-3 py-1 text-xs">{isPrivate ? "Private" : "Public"}</Badge></div><div className="grid gap-5 sm:grid-cols-2"><div className="flex flex-col p-6 rounded-2xl border bg-card shadow-sm"><span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Total Capacity</span><span className="text-4xl font-black text-foreground">{derivedCapacity}</span></div><div className="flex flex-col p-6 rounded-2xl border bg-card shadow-sm"><span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Expected Revenue</span><span className="text-4xl font-black text-primary">{ticketRevenue} AZN</span></div></div><Card className="border-border/60 shadow-none bg-secondary/10"><CardHeader className="pb-4 px-6 pt-6"><CardTitle className="text-base font-bold uppercase tracking-wide text-muted-foreground">Ticket Tiers</CardTitle></CardHeader><CardContent className="px-6 pb-6"><div className="flex flex-col gap-4">{tiers.map((tier) => (<div key={tier.id} className="flex items-center justify-between text-base bg-background p-3.5 rounded-xl border shadow-sm"><div className="flex items-center gap-3"><div className="w-3 h-3 rounded-full shadow-inner" style={{ backgroundColor: tier.color }} /><span className="font-bold text-foreground">{tier.name || "Unnamed"}</span><Badge variant="secondary" className="font-mono ml-2">{tier.quantity} seats</Badge></div><span className="font-bold text-muted-foreground">{tier.price} AZN</span></div>))}</div></CardContent></Card></div>
-              </div>
+              <EventSummaryStep 
+                eventDetails={{ title: eventTitle, date: eventDate, location: isPhysical ? (venueName || address) : "Online Event" }}
+                isPrivate={isPrivate}
+                derivedCapacity={derivedCapacity}
+                ticketRevenue={ticketRevenue}
+                tiers={tiers}
+                ticketDesign={ticketDesign}
+                buyerQuestions={buyerQuestions}
+              />
             )}
 
             {currentStep === 6 && (
@@ -465,13 +472,26 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
         </CardContent>
       </Card>
 
+      {/* 3. БЛОК КНОПОК "BACK" И "NEXT" (Находится ПОД карточкой) */}
       {currentStep < 7 && (
         <div className="flex flex-col gap-4 pt-4">
           {stepError && (<div className="flex items-center justify-center gap-2 bg-destructive/10 text-destructive text-sm font-semibold p-3.5 rounded-xl border border-destructive/20 animate-in fade-in slide-in-from-bottom-2"><AlertCircle className="h-4 w-4" />{stepError}</div>)}
           {errorMessage && (<div className="flex items-center justify-center gap-2 bg-destructive/10 text-destructive text-sm font-semibold p-3.5 rounded-xl border border-destructive/20 animate-in fade-in slide-in-from-bottom-2"><AlertCircle className="h-4 w-4" />{errorMessage}</div>)}
+          
           <div className="flex items-center justify-between mt-2">
-            <Button variant="outline" onClick={() => { setCurrentStep((s) => s - 1); setStepError(""); setErrorMessage(""); }} disabled={currentStep === 0 || isSubmitting} className="gap-2 w-32 h-12 rounded-xl border-2 font-bold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />{t(locale, "back") || "Back"}</Button>
-            <Button onClick={() => { if (currentStep === 5) submitEvent(); else handleNextStep(); }} disabled={isSubmitting} className={cn("gap-2 w-40 h-12 rounded-xl font-bold text-base shadow-md transition-all hover:scale-[1.02]", currentStep === 5 && "bg-green-600 hover:bg-green-700 text-white w-48")}>{isSubmitting ? (<span className="animate-pulse">Processing...</span>) : currentStep === 5 ? (<><Check className="h-5 w-5" />Publish</>) : (<>Next<ArrowRight className="h-5 w-5" /></>)}</Button>
+            <Button variant="outline" onClick={() => { setCurrentStep((s) => s - 1); setStepError(""); setErrorMessage(""); }} disabled={currentStep === 0 || isSubmitting} className="gap-2 w-32 h-12 rounded-xl border-2 font-bold text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-4 w-4" />{t(locale, "back") || "Back"}
+            </Button>
+            
+            <Button onClick={() => { if (currentStep === 6) submitEvent(); else handleNextStep(); }} disabled={isSubmitting} className={cn("gap-2 w-auto min-w-[160px] px-6 h-12 rounded-xl font-bold text-base shadow-md transition-all hover:scale-[1.02]", currentStep === 6 && "bg-green-600 hover:bg-green-700 text-white w-auto min-w-[192px]")}>
+              {isSubmitting ? (
+                <span className="animate-pulse">{t(locale, "processing") || "Processing..."}</span>
+              ) : currentStep === 6 ? (
+                <><Check className="h-5 w-5" />{t(locale, "publish") || "Publish"}</>
+              ) : (
+                <>{t(locale, "next") || "Next"}<ArrowRight className="h-5 w-5" /></>
+              )}
+            </Button>
           </div>
         </div>
       )}
