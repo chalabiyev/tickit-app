@@ -113,7 +113,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
 
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", {
+      const response = await fetch("http://localhost:8080/api/v1/upload/image", {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body: formData
@@ -121,7 +121,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
 
       if (!response.ok) throw new Error("Upload failed")
       const data = await response.json()
-      setCoverImageUrl(`http://72.60.135.9:8080${data.url}`)
+      setCoverImageUrl(`http://localhost:8080${data.url}`)
     } catch (error) {
       console.error(error)
       showToast("Şəkil yüklənə bilmədi / Error uploading image", "error") 
@@ -136,7 +136,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
       const token = localStorage.getItem("tickit_token") || ""
       const payload = { title, description, category, address: location, coverImageUrl }
 
-      const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
+      const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -162,7 +162,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
     try {
       const token = localStorage.getItem("tickit_token") || ""
       
-      const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
+      const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`

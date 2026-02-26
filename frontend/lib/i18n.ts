@@ -178,6 +178,30 @@ export const translations: Record<Locale, Record<string, string>> = {
     passwordTooShort: "Şifrə ən azı 8 simvol olmalıdır",
     welcomeBack: "Xoş gəldiniz",
     getStarted: "Başlayaq",
+    // Errors 
+    errTitleReq: "Zəhmət olmasa tədbirin adını daxil edin.",
+    errDescReq: "Zəhmət olmasa təsviri daxil edin.",
+    errCatReq: "Zəhmət olmasa kateqoriya seçin.",
+    errCustomCatReq: "Zəhmət olmasa xüsusi kateqoriyanızı qeyd edin.",
+    errDateReq: "Zəhmət olmasa tədbirin tarixini seçin.",
+    errStartReq: "Zəhmət olmasa başlama saatını seçin.",
+    errEndReq: "Zəhmət olmasa bitmə saatını seçin.",
+    errVenueReq: "Zəhmət olmasa məkanın adını daxil edin.",
+    errAddrReq: "Zəhmət olmasa ünvanı daxil edin.",
+    errCoverReq: "Zəhmət olmasa tədbirin afişasını yükləyin.",
+    // New ones
+    ageRestriction: "Yaş məhdudiyyəti",
+    startTime: "Başlanğıc vaxtı",
+    endTime: "Bitmə vaxtı",
+    privacySettings: "Məxfilik ayarları",
+    publicEvent: "İctimai tədbir",
+    privateEvent: "Özəl tədbir",
+    publicEventDesc: "Tədbir Tickit platformasında hamı üçün yerləşdiriləcək.",
+    privateEventDesc: "Yalnız linki olan şəxslər tədbiri görə və bilet ala bilər.",
+    uploadCover: "Şəkili yüklə",
+    dateTime: "Tarix və vaxt",
+    specifyCategory: "Kateqoriya",
+    eventPoster: "Poster"
   },
   ru: {
     dashboard: "Панель",
@@ -354,6 +378,30 @@ export const translations: Record<Locale, Record<string, string>> = {
     passwordTooShort: "Пароль минимум 8 символов",
     welcomeBack: "С возвращением",
     getStarted: "Начнём",
+    // Errors
+    errTitleReq: "Пожалуйста, введите название мероприятия.",
+    errDescReq: "Пожалуйста, введите описание.",
+    errCatReq: "Пожалуйста, выберите категорию.",
+    errCustomCatReq: "Пожалуйста, укажите вашу категорию.",
+    errDateReq: "Пожалуйста, выберите дату мероприятия.",
+    errStartReq: "Пожалуйста, выберите время начала.",
+    errEndReq: "Пожалуйста, выберите время окончания.",
+    errVenueReq: "Пожалуйста, введите название места проведения.",
+    errAddrReq: "Пожалуйста, введите адрес.",
+    errCoverReq: "Пожалуйста, загрузите постер мероприятия.",
+    // New ones
+    ageRestriction: "Возрастное ограничение",
+    startTime: "Время начала",
+    endTime: "Время окончания",
+    privacySettings: "Настройки конфиденциальности",
+    publicEvent: "Публичное мероприятие",
+    privateEvent: "Частное мероприятие",
+    publicEventDesc: "Мероприятие будет размещено на платформе Tickit для всех пользователей.",
+    privateEventDesc: "Только люди, у которых есть ссылка, могут видеть и покупать билеты.",
+    uploadCover: "Загрузить обложку",
+    dateTime: "Дата и время",
+    specifyCategory: "Категория",
+    eventPoster: "Постер"
   },
   tr: {
     dashboard: "Panel",
@@ -530,9 +578,33 @@ export const translations: Record<Locale, Record<string, string>> = {
     passwordTooShort: "Sifre en az 8 karakter olmalidir",
     welcomeBack: "Tekrar hosgeldiniz",
     getStarted: "Baslayalim",
+    // Errors 
+    errTitleReq: "Lütfen etkinlik adını girin.",
+    errDescReq: "Lütfen bir açıklama girin.",
+    errCatReq: "Lütfen bir kategori seçin.",
+    errCustomCatReq: "Lütfen özel kategorinizi belirtin.",
+    errDateReq: "Lütfen etkinlik tarihini seçin.",
+    errStartReq: "Lütfen başlangıç saatini seçin.",
+    errEndReq: "Lütfen bitiş saatini seçin.",
+    errVenueReq: "Lütfen mekan adını girin.",
+    errAddrReq: "Lütfen adresi girin.",
+    errCoverReq: "Lütfen etkinlik afişini yükleyin.",
+    // New ones
+    ageRestriction: "Yaş sınırı",
+    startTime: "Başlangıç zamanı",
+    endTime: "Bitiş zamanı",
+    privacySettings: "Gizlilik ayarları",
+    publicEvent: "Herkese açık etkinlik",
+    privateEvent: "Özel etkinlik",
+    publicEventDesc: "Etkinlik, Tickit platformasında herkes için listelenecektir.",
+    privateEventDesc: "Sadece bağlantıya sahip olan kişiler etkinliği görebilir ve bilet satın alabilir.",
+    uploadCover: "Kapak görselini yükle",
+    dateTime: "Tarih ve saat",
+    specifyCategory: "Kategori",
+    eventPoster: "Poster"
   },
 }
 
-export function t(locale: Locale, key: string): string {
+export function t(locale: Locale, key: string): string { 
   return translations[locale]?.[key] ?? key
 }
