@@ -138,7 +138,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
         const token = localStorage.getItem("tickit_token")
         if (!token) throw new Error("No token found")
 
-        const response = await fetch("http://localhost:8080/api/v1/events/me", {
+        const response = await fetch("http://72.60.135.9:8080/api/v1/events/me", {
           headers: {
             "Authorization": `Bearer ${token}`
           }
