@@ -1,5 +1,6 @@
 package az.tickit.event;
 
+import az.tickit.event.dto.BuyerQuestion;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -65,4 +66,6 @@ public class Event {
 
     private Object seatMapConfig; // Сюда мы будем сохранять настройки сцены и рядов
     private Object ticketDesign;
+
+    private List<BuyerQuestion> buyerQuestions;
 }

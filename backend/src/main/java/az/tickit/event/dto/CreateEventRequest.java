@@ -73,4 +73,6 @@ public class CreateEventRequest {
 
     private Object seatMapConfig;
     private Object ticketDesign;
+
+    private List<BuyerQuestion> buyerQuestions;
 }
