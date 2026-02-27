@@ -24,6 +24,7 @@ import { SeatMapGrid } from "./create-event/SeatMapGrid"
 import { LocationPicker } from "./create-event/LocationPicker"
 import { BuyerQuestionsStep, type BuyerQuestion } from "./create-event/BuyerQuestionsStep"
 import { EventSummaryStep } from "./create-event/EventSummaryStep"
+import { SuccessStep } from "./create-event/SuccessStep"
 
 interface CreateEventWizardProps { onBack: () => void }
 export interface TicketTier { id: number | string; name: string; price: number; quantity: number; color: string }
@@ -173,9 +174,9 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
     setIsUploading(true); const formData = new FormData(); formData.append("file", file)
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://localhost:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData })
+      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData })
       if (!response.ok) throw new Error("Upload failed")
-      const data = await response.json(); setCoverImageUrl(`http://localhost:8080${data.url}`)
+      const data = await response.json(); setCoverImageUrl(`http://72.60.135.9:8080${data.url}`)
     } catch (error) { showToast("Şəkil yüklənə bilmədi / Error uploading image", "error") } 
     finally { setIsUploading(false) }
   }
@@ -194,7 +195,13 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       eventDate: eventDate, startTime: formattedStartTime, endTime: formattedEndTime,
       isPhysical: isPhysical, venueName: isPhysical ? venueName : null, address: isPhysical ? address : null,
       isPrivate: isPrivate, coverImageUrl: coverImageUrl,
-      tiers: tiers.map(t => ({ id: t.id.toString(), name: t.name, price: t.price, quantity: t.quantity, color: t.color })),
+      tiers: tiers.map(t => ({ 
+        tierId: t.id.toString(), // Бэк ждет tierId, а не id
+        name: t.name, 
+        price: t.price, 
+        quantity: t.quantity, 
+        color: t.color 
+      })),
       isReservedSeating: isReservedSeating, seats: isReservedSeating ? formattedSeats : [],
       seatMapConfig: seatMapConfig, 
       ticketDesign: ticketDesign,
@@ -203,13 +210,13 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
 
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://localhost:8080/api/v1/events", {
+      const response = await fetch("http://72.60.135.9:8080/api/v1/events", {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload)
       })
       if (!response.ok) { const errorData = await response.json().catch(() => null); throw new Error(errorData?.message || "Failed to create event. Server rejected the payload.") }
       const data = await response.json()
-      setGeneratedLink(`localhost:3000/e/${data.shortLink}`)
+      setGeneratedLink(`72.60.135.9:3000/e/${data.shortLink}`)
       setCurrentStep(7)
     } catch (error: any) { console.error(error); setErrorMessage(error.message) } 
     finally { setIsSubmitting(false) }
@@ -444,29 +451,14 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
               </div>
             )}
 
+            {/* ШАГ 7: УСПЕХ */}
             {currentStep === 7 && (
-              <div className="flex flex-col items-center justify-center py-16 text-center animate-in zoom-in-95 duration-500">
-                <div className="h-24 w-24 rounded-full bg-green-500/10 flex items-center justify-center mb-8 ring-8 ring-green-500/5"><CheckCircle2 className="h-12 w-12 text-green-500" /></div>
-                <h2 className="text-3xl font-black tracking-tight mb-3 text-foreground">Event Published!</h2>
-                <p className="text-base text-muted-foreground max-w-md mb-10 leading-relaxed">Your event is now live. Copy the link below to start selling tickets immediately.</p>
-                  <div className="flex items-center gap-3 w-full max-w-md p-2 rounded-2xl bg-secondary border border-border shadow-inner">
-                    <div className="bg-background px-4 py-3.5 rounded-xl text-sm font-bold font-mono text-foreground flex-1 truncate text-left border shadow-sm">
-                      {generatedLink}
-                    </div>
-                    <Button 
-                      size="lg" 
-                      className="shrink-0 gap-2 rounded-xl px-6 font-bold"
-                      onClick={handleCopyLink}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy
-                    </Button>
-                  </div>
-                <div className="mt-12 flex gap-4 w-full max-w-md">
-                  <Button variant="outline" size="lg" className="flex-1 gap-2 border-2 font-bold"><Share2 className="h-4 w-4" />Share</Button>
-                  <Button size="lg" variant="secondary" onClick={onBack} className="flex-1 font-bold">Dashboard</Button>
-                </div>
-              </div>
+              <SuccessStep 
+                generatedLink={generatedLink || "https://tickit.az/e/sample-link"} // Фолбэк на случай пустой ссылки при тестах
+                eventName={eventTitle}
+                onCopy={handleCopyLink}
+                onDashboardClick={onBack}
+              />
             )}
           </div>
         </CardContent>
