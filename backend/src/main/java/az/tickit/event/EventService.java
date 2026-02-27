@@ -71,9 +71,9 @@ public class EventService {
                 .isReservedSeating(request.getIsReservedSeating())
                 .tiers(tiers)
                 .seats(seats == null ? List.of() : seats)
-                // СОХРАНЯЕМ КОНФИГ КАРТЫ СЦЕНЫ И РЯДОВ!
                 .seatMapConfig(request.getSeatMapConfig())
                 .ticketDesign(request.getTicketDesign())
+                .buyerQuestions(request.getBuyerQuestions()) // <--- ДОБАВЛЕНО СЮДА
                 .totalCapacity(totalCapacity)
                 .platformFee(platformFee)
                 .shortLink(shortLink)
@@ -83,7 +83,6 @@ public class EventService {
         return eventRepository.save(event);
     }
 
-    // НОВЫЙ МЕТОД: Обновление ивента
     public Event updateEvent(String eventId, String organizerEmail, az.tickit.event.dto.UpdateEventRequest request) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new RuntimeException("Event not found"));

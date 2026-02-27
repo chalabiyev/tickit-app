@@ -42,13 +42,14 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
   const { locale } = useLocale()
 
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+    // Убрали лагучий backdrop-blur и гигантскую тень. Оставили чистый фон.
+    <aside className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col bg-background border-r border-border">
       <div className="flex items-center gap-2.5 px-6 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-          <Ticket className="h-5 w-5 text-sidebar-primary-foreground" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+          <Ticket className="h-4 w-4 text-primary-foreground" />
         </div>
-        <span className="text-lg font-semibold tracking-tight text-sidebar-foreground">
-          Tickit
+        <span className="text-lg font-black tracking-tight text-foreground uppercase">
+          TICKIT
         </span>
       </div>
 
@@ -62,13 +63,19 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
                 <button
                   onClick={() => onNavigate(item.key)}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    // Вернули компактность и быструю анимацию только для цвета
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 group outline-none",
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-primary"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                      ? "bg-primary/10 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-[18px] w-[18px]" />
+                  <Icon 
+                    className={cn(
+                      "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
+                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    )} 
+                  />
                   {t(locale, item.key)}
                 </button>
               </li>
@@ -77,17 +84,18 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
         </ul>
       </nav>
 
-      <div className="border-t border-sidebar-border px-3 py-4">
-        <div className="flex items-center gap-3 px-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+      {/* Компактный и аккуратный профиль снизу */}
+      <div className="p-3 border-t border-border">
+        <div className="flex items-center gap-3 rounded-lg hover:bg-secondary/40 p-2 transition-colors cursor-pointer">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">
             {getInitials(user?.fullName)}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-sidebar-foreground">
-              {user?.fullName ?? ""}
+          <div className="flex flex-col overflow-hidden">
+            <span className="truncate text-sm font-semibold text-foreground">
+              {user?.fullName ?? "User"}
             </span>
-            <span className="text-xs text-sidebar-foreground/50">
-              {user?.email ?? ""}
+            <span className="truncate text-xs text-muted-foreground">
+              {user?.email ?? "user@tickit.az"}
             </span>
           </div>
         </div>

@@ -11,46 +11,34 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { 
   CalendarDays, MapPin, Ticket, AlertCircle, Loader2, 
-  X, Plus, Minus, ShieldCheck, ArrowRight, CheckCircle2, ReceiptText
+  X, Plus, Minus, ShieldCheck, CheckCircle2, ReceiptText
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const DEFAULT_COVER = "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&h=800&fit=crop"
 const GRID = 36; 
 
-function PublicSeatMap({ event, selectedSeats, onToggleSeat }: any) {
+function PublicSeatMap({ event, selectedSeats, onToggleSeat, bounds, rowLabels }: any) {
   const { locale } = useLocale()
-  const config = event.seatMapConfig || { stageRect: { x: -100, y: -150, w: 200, h: 50 }, rowLabelType: 'letters' };
+  const config = event.seatMapConfig || {};
   
-  const [scale, setScale] = useState(0.9);
+  const stages = config.stages || [
+    { id: 'stage-default', x: config.stageRect?.x ?? -100, y: config.stageRect?.y ?? -150, w: config.stageRect?.w ?? 200, h: config.stageRect?.h ?? 50, label: t(locale, "stage") || "STAGE" }
+  ];
+  
+  const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
-  const bounds = useMemo(() => {
-    if (!event.seats || event.seats.length === 0) return null;
-    const rows = event.seats.map((s: any) => Number(s.row));
-    const cols = event.seats.map((s: any) => Number(s.col));
-    return { 
-      minR: Math.min(...rows), maxR: Math.max(...rows), 
-      minC: Math.min(...cols), maxC: Math.max(...cols), 
-      sortedRows: Array.from(new Set(rows)).sort((a: any, b: any) => a - b) 
-    };
-  }, [event.seats]);
-
-  const rowLabels: Record<number, string> = {}
-  bounds?.sortedRows.forEach((r: any, i: number) => {
-    if (config.rowLabelType === 'letters') {
-      let label = ''; let n = i; while (n >= 0) { label = String.fromCharCode(65 + (n % 26)) + label; n = Math.floor(n / 26) - 1 }; rowLabels[r] = label
-    } else { rowLabels[r] = (i + 1).toString() }
-  })
-
   const selectedSeatsData = useMemo(() => {
     return selectedSeats.map((key: string) => {
-      const [r, c] = key.split('-').map(Number);
+      // ИСПРАВЛЕНИЕ: Используем split('_') чтобы отрицательные координаты не ломались
+      const [r, c] = key.split('_').map(Number);
       const seat = event.seats.find((s: any) => s.row === r && s.col === c);
-      // Улучшенный поиск категории: проверяем и tierId и id
       const tier = event.tiers.find((t: any) => 
-        String(t.tierId) === String(seat?.tierId) || String(t.id) === String(seat?.tierId)
+        String(t.tierId) === String(seat?.tierId) || 
+        String(t._safeId) === String(seat?.tierId) || 
+        String(t.id) === String(seat?.tierId)
       );
       return { key, row: r, col: c, tierName: tier?.name || "Standard", price: tier?.price || 0, color: tier?.color || "#3b82f6" };
     });
@@ -59,6 +47,8 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat }: any) {
   if (!bounds) return null;
   const actualGridWidth = (bounds.maxC - bounds.minC + 1) * GRID;
   const actualGridHeight = (bounds.maxR - bounds.minR + 1) * GRID;
+  const globalOffsetX = -bounds.minC * GRID;
+  const globalOffsetY = -bounds.minR * GRID;
 
   return (
     <div className="flex flex-col lg:flex-row gap-5 h-full min-h-[500px]">
@@ -68,30 +58,39 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat }: any) {
         onMouseMove={(e) => isDragging && setOffset(prev => ({ x: prev.x + e.movementX, y: prev.y + e.movementY }))}
         onMouseUp={() => setIsDragging(false)}
         onMouseLeave={() => setIsDragging(false)}
-        className="flex-[3] relative bg-black/40 rounded-3xl border border-border/40 overflow-hidden shadow-inner cursor-grab active:cursor-grabbing group h-full"
+        className="flex-[4] relative bg-black/40 rounded-[2rem] border border-border/40 overflow-hidden shadow-inner cursor-grab active:cursor-grabbing h-full"
       >
         <div className="absolute top-4 right-4 z-30 flex flex-col gap-2">
-          <Button variant="secondary" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setScale(s => Math.min(s + 0.2, 3))}><Plus className="h-4 w-4"/></Button>
-          <Button variant="secondary" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setScale(s => Math.max(s - 0.2, 0.3))}><Minus className="h-4 w-4"/></Button>
+          <Button variant="secondary" size="icon" className="h-9 w-9 rounded-xl" onClick={() => setScale(s => Math.min(s + 0.2, 3))}><Plus className="h-4 w-4"/></Button>
+          <Button variant="secondary" size="icon" className="h-9 w-9 rounded-xl" onClick={() => setScale(s => Math.max(s - 0.2, 0.3))}><Minus className="h-4 w-4"/></Button>
         </div>
 
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transition: isDragging ? 'none' : 'transform 0.1s' }}>
           <div className="relative pointer-events-auto" style={{ width: actualGridWidth, height: actualGridHeight }}>
-            <div className="absolute bg-muted/90 backdrop-blur border border-border text-foreground font-black tracking-widest text-[10px] rounded-lg flex items-center justify-center z-20 shadow-lg" style={{ left: '50%', transform: 'translateX(-50%)', top: -70, width: config.stageRect.w, height: config.stageRect.h }}>
-               {t(locale, "stage") || "SƏHNƏ"}
-            </div>
+            {stages.map((stage: any) => (
+              <div key={stage.id} className="absolute bg-muted/90 backdrop-blur border border-border text-foreground font-black tracking-widest text-[10px] rounded-lg flex items-center justify-center z-20 shadow-md select-none" style={{ left: stage.x + globalOffsetX, top: stage.y + globalOffsetY, width: stage.w, height: stage.h }}>
+                {stage.label || t(locale, "stage") || "STAGE"}
+              </div>
+            ))}
             {bounds.sortedRows.map((r: any) => (
-              <div key={`lbl-${r}`} style={{ position: 'absolute', top: (r * GRID) - (bounds.minR * GRID) + (GRID/2), left: -35, transform: 'translate(0, -50%)' }} className="text-[11px] text-muted-foreground font-mono font-bold opacity-40">{rowLabels[r]}</div>
+              <div key={`lbl-${r}`} style={{ position: 'absolute', top: (r * GRID) + globalOffsetY + (GRID/2), left: -35, transform: 'translate(0, -50%)' }} className="text-[11px] text-muted-foreground font-mono font-bold opacity-40">{rowLabels[r]}</div>
             ))}
             {event.seats?.map((seat: any) => {
-              const tier = event.tiers?.find((t: any) => String(t.tierId) === String(seat.tierId) || String(t.id) === String(seat.tierId));
-              const isSelected = selectedSeats.includes(`${seat.row}-${seat.col}`);
+              const tier = event.tiers?.find((t: any) => 
+                String(t.tierId) === String(seat.tierId) || 
+                String(t._safeId) === String(seat.tierId) || 
+                String(t.id) === String(seat.tierId)
+              );
+              // ИСПРАВЛЕНИЕ: Генерируем ключ через '_'
+              const seatKey = `${seat.row}_${seat.col}`;
+              const isSelected = selectedSeats.includes(seatKey);
+              
               return (
                 <button 
-                  type="button" key={`${seat.row}-${seat.col}`} 
-                  onClick={() => tier && onToggleSeat(`${seat.row}-${seat.col}`)} 
-                  style={{ position: 'absolute', top: (seat.row * GRID) - (bounds.minR * GRID), left: (seat.col * GRID) - (bounds.minC * GRID), width: GRID - 10, height: GRID - 10, backgroundColor: isSelected ? '#ffffff' : (tier?.color || '#334155'), color: isSelected ? '#000000' : '#ffffff' }} 
-                  className={cn("rounded-xl flex items-center justify-center text-[10px] font-bold transition-all shadow-sm", isSelected ? "ring-4 ring-primary z-10" : "hover:brightness-110", !tier && "opacity-10")}
+                  type="button" key={seatKey} 
+                  onClick={() => tier && onToggleSeat(seatKey)} 
+                  style={{ position: 'absolute', top: (seat.row * GRID) + globalOffsetY, left: (seat.col * GRID) + globalOffsetX, width: GRID - 10, height: GRID - 10, backgroundColor: isSelected ? '#ffffff' : (tier?.color || '#334155'), color: isSelected ? '#000000' : '#ffffff' }} 
+                  className={cn("rounded-xl flex items-center justify-center text-[10px] font-bold transition-all shadow-sm", isSelected ? "ring-4 ring-primary z-10" : "hover:brightness-110", !tier && "opacity-10 cursor-not-allowed")}
                 >
                   {seat.col - bounds.minC + 1}
                 </button>
@@ -101,23 +100,23 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat }: any) {
         </div>
       </div>
 
-      <div className="flex-1 lg:max-w-[320px] flex flex-col bg-card border border-border/40 rounded-3xl overflow-hidden shadow-xl">
+      <div className="flex-1 lg:max-w-[320px] flex flex-col bg-card border border-border/40 rounded-[2rem] overflow-hidden shadow-xl">
         <div className="p-4 border-b bg-secondary/10 flex items-center gap-2">
           <ReceiptText className="w-4 h-4 text-primary" />
-          <h3 className="font-bold text-xs uppercase tracking-widest">{t(locale, "selectedTickets")}</h3>
+          <h3 className="font-bold text-xs uppercase tracking-widest">{t(locale, "selectedTickets") || "Selected"}</h3>
           <Badge className="ml-auto font-bold px-2 h-5 text-[10px]">{selectedSeats.length}</Badge>
         </div>
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 custom-scrollbar min-h-[300px]">
           {selectedSeatsData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-16 opacity-20"><Ticket className="w-10 h-10 mb-2" /><p className="text-[10px] font-bold uppercase">{t(locale, "noSeatsSelected")}</p></div>
+            <div className="flex flex-col items-center justify-center h-full py-16 opacity-20"><Ticket className="w-10 h-10 mb-2" /><p className="text-[10px] font-bold uppercase tracking-widest">{t(locale, "noSeatsSelected") || "Select seats"}</p></div>
           ) : (
             selectedSeatsData.map((s: any) => (
               <div key={s.key} className="p-3 rounded-2xl bg-secondary/20 border border-border/40 flex flex-col gap-1 relative animate-in fade-in slide-in-from-right-2">
                 <button onClick={() => onToggleSeat(s.key)} className="absolute top-3 right-3 text-muted-foreground hover:text-destructive transition-colors"><X className="h-4 w-4" /></button>
                 <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} /><span className="text-[9px] font-bold text-muted-foreground uppercase">{s.tierName}</span></div>
                 <div className="flex justify-between items-end">
-                  <span className="text-sm font-bold">{t(locale, "row")} {rowLabels[s.row]}, {t(locale, "seat")} {s.col - bounds.minC + 1}</span>
-                  <span className="font-black text-primary">{s.price} AZN</span>
+                  <span className="text-sm font-bold">{t(locale, "row") || "Row"} {rowLabels[s.row]}, {t(locale, "seat") || "Seat"} {s.col - bounds.minC + 1}</span>
+                  <span className="font-black text-primary">{s.price} ₼</span>
                 </div>
               </div>
             ))
@@ -138,9 +137,10 @@ export default function PublicEventPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
-  const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1) 
+  const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1) 
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]) 
   const [buyerInfo, setBuyerInfo] = useState({ firstName: "", lastName: "", email: "" })
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
@@ -151,8 +151,18 @@ export default function PublicEventPage() {
         const res = await fetch(`http://72.60.135.9:8080/api/v1/events/s/${shortLink}`)
         if (!res.ok) throw new Error("Event not found")
         const data = await res.json()
+        
+        if (data.tiers && data.seats) {
+          const usedTierIds = Array.from(new Set(data.seats.map((s: any) => String(s.tierId)).filter(Boolean)));
+          data.tiers = data.tiers.map((tier: any, index: number) => {
+            if (tier.tierId) return { ...tier, _safeId: String(tier.tierId) };
+            const fallbackId = usedTierIds[index] || tier.id || tier._id;
+            return { ...tier, _safeId: String(fallbackId) };
+          });
+        }
+        
         setEvent(data)
-      } catch (err: any) { setError(t(locale, "eventNotFound")) } 
+      } catch (err: any) { setError(t(locale, "eventNotFound") || "Not found") } 
       finally { setLoading(false) }
     }
     if (shortLink && mounted) fetchEvent()
@@ -162,24 +172,138 @@ export default function PublicEventPage() {
 
   const isReserved = event?.isReservedSeating
   const totalPrice = selectedSeats.reduce((sum, seatKey) => {
-    const [r, c] = seatKey.split('-').map(Number);
+    // ИСПРАВЛЕНИЕ: split('_')
+    const [r, c] = seatKey.split('_').map(Number);
     const seat = event.seats.find((s: any) => s.row === r && s.col === c);
-    const tier = event.tiers.find((t: any) => String(t.tierId) === String(seat?.tierId) || String(t.id) === String(seat?.tierId));
+    const tier = event.tiers.find((t: any) => 
+      String(t.tierId) === String(seat?.tierId) || 
+      String(t._safeId) === String(seat?.tierId) || 
+      String(t.id) === String(seat?.tierId)
+    );
     return sum + (tier?.price || 0);
   }, 0)
 
   const stepText = (t(locale, "stepOf") || "{step} / {total} addım")
-    .replace("{step}", checkoutStep.toString())
-    .replace("{total}", "2");
+    .replace(/{step}/gi, checkoutStep.toString())
+    .replace(/{total}/gi, "2");
 
-  const handleCheckout = () => {
+  const isFormValid = useMemo(() => {
+    if (!buyerInfo.firstName.trim() || !buyerInfo.lastName.trim() || !buyerInfo.email.trim()) return false;
+    if (event?.buyerQuestions && Array.isArray(event.buyerQuestions)) {
+      for (const q of event.buyerQuestions) {
+        if (q.required && !customAnswers[q.id]?.trim()) return false;
+      }
+    }
+    return true;
+  }, [buyerInfo, customAnswers, event?.buyerQuestions]);
+
+  const bounds = useMemo(() => {
+    if (!event || !event.seats || event.seats.length === 0) return null;
+    const rows = event.seats.map((s: any) => Number(s.row));
+    const cols = event.seats.map((s: any) => Number(s.col));
+    return { minR: Math.min(...rows), maxR: Math.max(...rows), minC: Math.min(...cols), maxC: Math.max(...cols), sortedRows: Array.from(new Set(rows)).sort((a: any, b: any) => a - b) };
+  }, [event]);
+
+  const rowLabels: Record<number, string> = useMemo(() => {
+    if (!bounds || !event?.seatMapConfig) return {};
+    const labels: Record<number, string> = {};
+    const config = event.seatMapConfig;
+    bounds.sortedRows.forEach((r: any, i: number) => {
+      if (config.rowLabelType === 'letters') {
+        let label = ''; let n = i; while (n >= 0) { label = String.fromCharCode(65 + (n % 26)) + label; n = Math.floor(n / 26) - 1 }; labels[r] = label
+      } else { labels[r] = (i + 1).toString() }
+    });
+    return labels;
+  }, [bounds, event]);
+
+  const handleCheckout = async () => {
     setIsProcessing(true);
-    setTimeout(() => { setIsProcessing(false); setIsCheckoutOpen(false); }, 2000);
+
+    try {
+      const { jsPDF } = await import("jspdf");
+
+      for (const seatKey of selectedSeats) {
+        // ИСПРАВЛЕНИЕ: split('_')
+        const [r, c] = seatKey.split('_').map(Number);
+        const seat = event.seats.find((s: any) => s.row === r && s.col === c);
+        const tier = event.tiers.find((t: any) => 
+          String(t.tierId) === String(seat?.tierId) || 
+          String(t._safeId) === String(seat?.tierId) || 
+          String(t.id) === String(seat?.tierId)
+        );
+
+        const seatLabel = `${t(locale, "row") || "Row"} ${rowLabels[r]}, ${t(locale, "seat") || "Seat"} ${c - (bounds?.minC || 0) + 1}`;
+        const ticketType = tier?.name || "Standard";
+
+        const design = event.ticketDesign || { bgColor: "#09090b", elements: [] };
+        const canvas = document.createElement("canvas");
+        canvas.width = 400;
+        canvas.height = 800;
+        const ctx = canvas.getContext("2d");
+
+        if (ctx) {
+          ctx.fillStyle = design.bgColor || "#09090b";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          const elements = design.elements && design.elements.length > 0 ? design.elements : [
+            { type: 'text', x: 24, y: 100, content: '{{Event_Name}}', color: '#ffffff', fontSize: 32, fontWeight: 'bold' },
+            { type: 'text', x: 24, y: 150, content: '{{Event_Date}}', color: '#a1a1aa', fontSize: 14 },
+            { type: 'text', x: 24, y: 220, content: '{{Guest_Name}}', color: '#ffffff', fontSize: 24, fontWeight: 'bold' },
+            { type: 'text', x: 24, y: 260, content: '{{Ticket_Type}} • {{Seat_Info}}', color: '#3b82f6', fontSize: 16, fontWeight: 'bold' },
+            { type: 'qr', x: 125, y: 500, fontSize: 150 }
+          ];
+
+          for (const el of elements) {
+            if (el.type === "text") {
+              let text = el.content || "";
+              text = text.replace(/{{Event_Name}}/gi, event.title || "");
+              text = text.replace(/{{Event_Date}}/gi, event.eventDate || "");
+              text = text.replace(/{{Location}}/gi, event.venueName || event.address || "Online");
+              text = text.replace(/{{Guest_Name}}/gi, `${buyerInfo.firstName} ${buyerInfo.lastName}`);
+              text = text.replace(/{{Ticket_Type}}/gi, ticketType);
+              text = text.replace(/{{Seat_Info}}/gi, seatLabel);
+
+              ctx.fillStyle = el.color || "#ffffff";
+              ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 16}px ${el.fontFamily || "Arial, sans-serif"}`;
+              ctx.textAlign = el.textAlign || "left";
+              ctx.textBaseline = "top";
+              ctx.fillText(text, el.x, el.y);
+            } else if (el.type === "qr") {
+              const qrData = `${event.shortLink}-${seatKey}-${buyerInfo.email}`;
+              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${el.fontSize || 150}x${el.fontSize || 150}&data=${encodeURIComponent(qrData)}&margin=0`;
+              try {
+                const qrImg = new Image();
+                qrImg.crossOrigin = "anonymous";
+                qrImg.src = qrUrl;
+                await new Promise((resolve) => {
+                  qrImg.onload = () => {
+                    ctx.drawImage(qrImg, el.x, el.y, el.fontSize || 150, el.fontSize || 150);
+                    resolve(true);
+                  };
+                  qrImg.onerror = () => resolve(false);
+                });
+              } catch (e) {
+                console.error("QR Generation failed", e);
+              }
+            }
+          }
+
+          const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [400, 800] });
+          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 400, 800);
+          pdf.save(`${event.title}_Bilet_${seatLabel.replace(/ /g, "_")}.pdf`);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to generate PDF", err);
+    } finally {
+      setIsProcessing(false);
+      setCheckoutStep(3);
+    }
   }
 
   if (!mounted) return null;
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary w-10 h-10" /></div>
-  if (error || !event) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-6 bg-background"><AlertCircle className="w-16 h-16 text-destructive" /><h2 className="text-3xl font-black">{error}</h2></div>
+  if (error || !event) return <div className="min-h-screen flex flex-col items-center justify-center bg-background"><h2 className="text-xl font-bold">{error}</h2></div>
 
   const minPrice = event.tiers?.length > 0 ? Math.min(...event.tiers.map((t: any) => t.price)) : 0
   const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://72.60.135.9:8080${event.coverImageUrl}`) : DEFAULT_COVER;
@@ -203,7 +327,7 @@ export default function PublicEventPage() {
               <div className="flex items-start gap-4 p-5 rounded-3xl bg-secondary/40 backdrop-blur-xl border border-border/50 shadow-sm"><div className="p-3 bg-background rounded-2xl shadow-sm border border-border/50"><CalendarDays className="w-6 h-6 text-primary" /></div><div className="flex flex-col mt-0.5"><span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t(locale, "dateTime")}</span><span className="font-bold text-base text-foreground">{event.eventDate}</span><span className="text-xs font-medium text-muted-foreground">{event.startTime}</span></div></div>
               <div className="flex items-start gap-4 p-5 rounded-3xl bg-secondary/40 backdrop-blur-xl border border-border/50 shadow-sm"><div className="p-3 bg-background rounded-2xl shadow-sm border border-border/50"><MapPin className="w-6 h-6 text-primary" /></div><div className="flex flex-col mt-0.5"><span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t(locale, "location")}</span><span className="font-bold text-base text-foreground">{event.isPhysical ? event.venueName : t(locale, "onlineEvent")}</span><span className="text-xs font-medium text-muted-foreground line-clamp-2">{event.isPhysical ? event.address : t(locale, "linkProvided")}</span></div></div>
             </div>
-            <div className="flex flex-col gap-4 pb-20"><h3 className="text-2xl font-black tracking-tight">{t(locale, "aboutEvent")}</h3><p className="text-muted-foreground leading-relaxed text-base whitespace-pre-wrap font-medium">{event.description}</p></div>
+            <div className="flex flex-col gap-4 pb-20"><h3 className="text-2xl font-black tracking-tight">{t(locale, "aboutEvent")}</h3><p className="text-muted-foreground leading-relaxed text-base font-medium">{event.description}</p></div>
           </div>
 
           <div className="hidden lg:block w-[350px] shrink-0 sticky top-24 z-30">
@@ -227,15 +351,81 @@ export default function PublicEventPage() {
 
       {isCheckoutOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-background/95 backdrop-blur-md sm:p-4 animate-in fade-in duration-300">
-          <div className={cn("bg-card w-full border-t sm:border border-border/60 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col transition-all duration-500 animate-in slide-in-from-bottom-full", isReserved && checkoutStep === 1 ? "max-w-[1300px] h-[90vh]" : "max-w-xl max-h-[92vh]")}>
+          <div className={cn("bg-card w-full border-t sm:border border-border/60 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col", isReserved && checkoutStep === 1 ? "max-w-[1300px] h-[90vh]" : "max-w-xl max-h-[92vh]")}>
             <div className="p-6 border-b flex justify-between items-center bg-secondary/10">
-              <div className="flex flex-col gap-0.5"><h2 className="text-xl font-black uppercase tracking-tight">{checkoutStep === 1 ? t(locale, "selectTickets") : t(locale, "buyerDetails")}</h2>{checkoutStep < 3 && <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{stepText}</span>}</div>
+              <div className="flex flex-col gap-0.5"><h2 className="text-xl font-black uppercase tracking-tight">{checkoutStep === 1 ? t(locale, "selectTickets") : checkoutStep === 2 ? t(locale, "buyerDetails") : t(locale, "success")}</h2>{checkoutStep < 3 && <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{stepText}</span>}</div>
               <Button variant="secondary" size="icon" className="rounded-xl w-10 h-10" onClick={() => setIsCheckoutOpen(false)}><X className="w-5 h-5" /></Button>
             </div>
+            
             <div className="p-4 sm:p-8 overflow-y-auto flex-1 custom-scrollbar bg-background">
-              {checkoutStep === 1 ? <PublicSeatMap event={event} selectedSeats={selectedSeats} onToggleSeat={toggleSeat} /> : <div className="flex flex-col gap-6 p-4 animate-in fade-in slide-in-from-right-4"><div className="grid grid-cols-2 gap-3"><Input className="h-12 bg-secondary/10 rounded-xl" placeholder={t(locale, "firstName")} value={buyerInfo.firstName} onChange={e => setBuyerInfo({...buyerInfo, firstName: e.target.value})} /><Input className="h-12 bg-secondary/10 rounded-xl" placeholder={t(locale, "lastName")} value={buyerInfo.lastName} onChange={e => setBuyerInfo({...buyerInfo, lastName: e.target.value})} /></div><Input type="email" className="h-12 bg-secondary/10 rounded-xl" placeholder={t(locale, "emailAddress")} value={buyerInfo.email} onChange={e => setBuyerInfo({...buyerInfo, email: e.target.value})} /></div>}
+              {checkoutStep === 1 ? (
+                <PublicSeatMap event={event} selectedSeats={selectedSeats} onToggleSeat={toggleSeat} bounds={bounds} rowLabels={rowLabels} />
+              ) : checkoutStep === 2 ? (
+                <div className="flex flex-col gap-8 p-2 animate-in fade-in slide-in-from-right-4">
+                  <div className="flex flex-col gap-4">
+                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t(locale, "contactInfo") || "Contact Info"}</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "firstName") || "Ad"} value={buyerInfo.firstName} onChange={e => setBuyerInfo({...buyerInfo, firstName: e.target.value})} />
+                      <Input className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "lastName") || "Soyad"} value={buyerInfo.lastName} onChange={e => setBuyerInfo({...buyerInfo, lastName: e.target.value})} />
+                    </div>
+                    <Input type="email" className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "emailAddress") || "E-poçt"} value={buyerInfo.email} onChange={e => setBuyerInfo({...buyerInfo, email: e.target.value})} />
+                  </div>
+
+                  {event.buyerQuestions && event.buyerQuestions.length > 0 && (
+                    <>
+                      <Separator className="bg-border/60" />
+                      <div className="flex flex-col gap-4">
+                        <Label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t(locale, "additionalDetails") || "Additional Details"}</Label>
+                        {event.buyerQuestions.map((q: any) => (
+                          <div key={q.id} className="flex flex-col gap-2">
+                            <Label className="text-sm font-semibold ml-1 text-foreground">
+                              {q.label} {q.required && <span className="text-destructive">*</span>}
+                            </Label>
+                            <Input 
+                              className="h-12 bg-secondary/10 rounded-xl font-medium border-none shadow-inner" 
+                              required={q.required}
+                              value={customAnswers[q.id] || ""} 
+                              onChange={e => setCustomAnswers({...customAnswers, [q.id]: e.target.value})} 
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center p-6">
+                  <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
+                  <h3 className="text-2xl font-black mb-2 uppercase tracking-tight">{t(locale, "paymentSuccessful") || "ÖDƏNİŞ UĞURLUDUR!"}</h3>
+                  <p className="text-muted-foreground text-sm max-w-xs">{t(locale, "ticketsDownloaded") || "Biletləriniz PDF formatında cihazınıza yükləndi!"}</p>
+                  <Button size="lg" className="mt-8 px-10 rounded-xl font-bold" onClick={() => setIsCheckoutOpen(false)}>{t(locale, "done")}</Button>
+                </div>
+              )}
             </div>
-            {checkoutStep < 3 && (<div className="p-6 border-t bg-card rounded-b-[2.5rem] flex flex-col sm:flex-row justify-between items-center gap-4"><div className="flex flex-col items-center sm:items-start"><span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{t(locale, "total")}</span><div className="flex items-baseline gap-1"><span className="text-4xl font-black text-primary tracking-tighter">{totalPrice}</span><span className="text-lg font-black text-primary">₼</span></div><span className="text-[10px] font-black text-muted-foreground uppercase mt-1">{selectedSeats.length} {t(locale, "ticketsSelected")}</span></div><div className="flex gap-3 w-full sm:w-auto">{checkoutStep === 2 && <Button variant="outline" size="lg" className="h-14 px-8 rounded-xl font-bold" onClick={() => setCheckoutStep(1)}>{t(locale, "back")}</Button>}<Button size="lg" className={cn("h-14 px-10 rounded-xl font-black text-lg flex-1 sm:flex-none shadow-xl", checkoutStep === 2 ? "bg-green-600 hover:bg-green-700" : "bg-primary")} onClick={checkoutStep === 1 ? () => setCheckoutStep(2) : handleCheckout} disabled={selectedSeats.length === 0}>{checkoutStep === 1 ? t(locale, "continueBtn") : t(locale, "payNow")}</Button></div></div>)}
+
+            {checkoutStep < 3 && (
+              <div className="p-6 border-t bg-card rounded-b-[2.5rem] flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex flex-col items-center sm:items-start">
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{t(locale, "total")}</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-black text-primary tracking-tighter">{totalPrice}</span>
+                    <span className="text-lg font-black text-primary">₼</span>
+                  </div>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase mt-1">{selectedSeats.length} {t(locale, "ticketsSelected")}</span>
+                </div>
+                <div className="flex gap-3 w-full sm:w-auto">
+                  {checkoutStep === 2 && <Button variant="outline" size="lg" className="h-14 px-8 rounded-xl font-bold" onClick={() => setCheckoutStep(1)}>{t(locale, "back") || "Geri"}</Button>}
+                  <Button 
+                    size="lg" 
+                    className={cn("h-14 px-10 rounded-xl font-black text-lg flex-1 sm:flex-none shadow-xl", checkoutStep === 2 ? "bg-green-600 hover:bg-green-700" : "bg-primary")} 
+                    onClick={() => checkoutStep === 1 ? setCheckoutStep(2) : handleCheckout()} 
+                    disabled={checkoutStep === 1 ? selectedSeats.length === 0 : (!isFormValid || isProcessing)}
+                  >
+                    {isProcessing ? <Loader2 className="animate-spin w-5 h-5" /> : checkoutStep === 1 ? (t(locale, "continueBtn") || "Davam et") : (t(locale, "payNow") || "İndi Ödə")}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

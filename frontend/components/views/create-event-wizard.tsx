@@ -196,7 +196,8 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       isPhysical: isPhysical, venueName: isPhysical ? venueName : null, address: isPhysical ? address : null,
       isPrivate: isPrivate, coverImageUrl: coverImageUrl,
       tiers: tiers.map(t => ({ 
-        tierId: t.id.toString(), // Бэк ждет tierId, а не id
+        tierId: t.id.toString(), 
+        id: t.id.toString(), 
         name: t.name, 
         price: t.price, 
         quantity: t.quantity, 
