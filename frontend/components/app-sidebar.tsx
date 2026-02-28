@@ -22,15 +22,6 @@ const navItems = [
   { key: "settings", icon: Settings },
 ]
 
-interface AppSidebarProps {
-  activePage: string
-  onNavigate: (page: string) => void
-  user?: {
-    fullName: string
-    email: string
-  } | null
-}
-
 function getInitials(name: string | undefined): string {
   if (!name) return "AK"
   const parts = name.trim().split(/\s+/)
@@ -42,15 +33,28 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
   const { locale } = useLocale()
 
   return (
-    // Убрали лагучий backdrop-blur и гигантскую тень. Оставили чистый фон.
     <aside className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col bg-background border-r border-border">
-      <div className="flex items-center gap-2.5 px-6 py-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <Ticket className="h-4 w-4 text-primary-foreground" />
+      {/* КРАСИВОЕ НАЗВАНИЕ: eticksystem */}
+      <div className="flex items-center gap-3 px-6 py-7">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 transition-transform hover:rotate-12">
+          <Ticket className="h-5 w-5 text-primary-foreground" />
         </div>
-        <span className="text-lg font-black tracking-tight text-foreground uppercase">
-          TICKIT
-        </span>
+        <div className="flex flex-col leading-none">
+          <div className="flex items-center">
+            <span className="text-xl font-black tracking-tighter text-primary">
+              e
+            </span>
+            <span className="text-xl font-black tracking-tighter text-foreground">
+              tick
+            </span>
+            <span className="text-xl font-light tracking-tighter text-muted-foreground/80">
+              system
+            </span>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 ml-0.5">
+            Admin Panel
+          </span>
+        </div>
       </div>
 
       <nav className="flex-1 px-3 py-2">
@@ -63,16 +67,15 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
                 <button
                   onClick={() => onNavigate(item.key)}
                   className={cn(
-                    // Вернули компактность и быструю анимацию только для цвета
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 group outline-none",
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 group outline-none",
                     isActive
-                      ? "bg-primary/10 text-primary font-semibold"
+                      ? "bg-primary/10 text-primary font-semibold shadow-sm"
                       : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                   )}
                 >
                   <Icon 
                     className={cn(
-                      "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
+                      "h-[18px] w-[18px] shrink-0 transition-colors duration-200",
                       isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                     )} 
                   />
@@ -84,22 +87,31 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
         </ul>
       </nav>
 
-      {/* Компактный и аккуратный профиль снизу */}
+      {/* Профиль с обновленным доменом */}
       <div className="p-3 border-t border-border">
-        <div className="flex items-center gap-3 rounded-lg hover:bg-secondary/40 p-2 transition-colors cursor-pointer">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">
+        <div className="flex items-center gap-3 rounded-xl hover:bg-secondary/40 p-2 transition-all cursor-pointer group">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground border border-border group-hover:border-primary/30 transition-colors">
             {getInitials(user?.fullName)}
           </div>
           <div className="flex flex-col overflow-hidden">
-            <span className="truncate text-sm font-semibold text-foreground">
+            <span className="truncate text-sm font-bold text-foreground">
               {user?.fullName ?? "User"}
             </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {user?.email ?? "user@tickit.az"}
+            <span className="truncate text-[11px] text-muted-foreground font-medium">
+              {user?.email ?? "admin@eticksystem.com"}
             </span>
           </div>
         </div>
       </div>
     </aside>
   )
+}
+
+interface AppSidebarProps {
+  activePage: string
+  onNavigate: (page: string) => void
+  user?: {
+    fullName: string
+    email: string
+  } | null
 }

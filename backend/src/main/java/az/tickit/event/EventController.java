@@ -76,4 +76,18 @@ public class EventController {
         Event event = eventService.getEventByShortLink(shortLink);
         return ResponseEntity.ok(event);
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Event> getEventById(@PathVariable String id) {
+        Event event = eventService.getEventById(id);
+        return ResponseEntity.ok(event);
+    }
+
+    @GetMapping("/{id}/statistics")
+    public ResponseEntity<az.tickit.event.dto.EventStatsResponse> getEventStatistics(
+            @PathVariable String id,
+            Authentication authentication) {
+        String organizerEmail = authentication.getName();
+        return ResponseEntity.ok(eventService.getEventStatistics(id, organizerEmail));
+    }
 }

@@ -57,7 +57,6 @@ function EventCard({
           src={event.image || defaultImage}
           alt={event.name}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 block m-0 p-0"
-          crossOrigin="anonymous"
           onError={(e) => { (e.target as HTMLImageElement).src = defaultImage; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent pointer-events-none" />
@@ -184,7 +183,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
             sold: 0, 
             total: ev.totalCapacity || 0,
             status: status,
-            image: ev.coverImageUrl || "", 
+            image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://72.60.135.9:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
             shortLink: ev.shortLink 
           }
         })

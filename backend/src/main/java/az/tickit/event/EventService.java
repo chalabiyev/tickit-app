@@ -1,10 +1,13 @@
 package az.tickit.event;
 
 import az.tickit.event.dto.CreateEventRequest;
+import az.tickit.order.Order;
+import az.tickit.order.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -14,6 +17,7 @@ import java.util.stream.Collectors;
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final OrderRepository orderRepository;
 
     public Event createEvent(CreateEventRequest request, String organizerEmail) {
 
@@ -87,28 +91,80 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new RuntimeException("Event not found"));
 
+        // Проверка, что ивент принадлежит этому организатору
         if (!event.getOrganizerId().equals(organizerEmail)) {
             throw new RuntimeException("You don't have permission to edit this event");
         }
 
-        if (request.getTitle() != null && !request.getTitle().isBlank()) {
-            event.setTitle(request.getTitle());
-        }
-        if (request.getDescription() != null && !request.getDescription().isBlank()) {
-            event.setDescription(request.getDescription());
-        }
-        if (request.getCategory() != null && !request.getCategory().isBlank()) {
-            event.setCategory(request.getCategory());
-        }
-        if (request.getAddress() != null && !request.getAddress().isBlank()) {
-            event.setAddress(request.getAddress());
-            event.setVenueName(request.getAddress());
-        }
-        if (request.getCoverImageUrl() != null && !request.getCoverImageUrl().isBlank()) {
-            event.setCoverImageUrl(request.getCoverImageUrl());
-        }
+        // Обновляем основные данные
+        if (request.getTitle() != null) event.setTitle(request.getTitle());
+        if (request.getDescription() != null) event.setDescription(request.getDescription());
+        if (request.getCategory() != null) event.setCategory(request.getCategory());
+
+        // Обновляем дату и время
+        if (request.getEventDate() != null) event.setEventDate(request.getEventDate());
+        if (request.getStartTime() != null) event.setStartTime(request.getStartTime());
+        if (request.getEndTime() != null) event.setEndTime(request.getEndTime());
+
+        // Обновляем локацию
+        if (request.getIsPhysical() != null) event.setIsPhysical(request.getIsPhysical());
+        if (request.getVenueName() != null) event.setVenueName(request.getVenueName());
+        if (request.getAddress() != null) event.setAddress(request.getAddress());
+
+        // Обновляем настройки приватности и ограничений
+        if (request.getIsPrivate() != null) event.setIsPrivate(request.getIsPrivate());
+        if (request.getAgeRestriction() != null) event.setAgeRestriction(request.getAgeRestriction());
+        if (request.getMaxTicketsPerOrder() != null) event.setMaxTicketsPerOrder(request.getMaxTicketsPerOrder());
+
+        // Обновляем картинку
+        if (request.getCoverImageUrl() != null) event.setCoverImageUrl(request.getCoverImageUrl());
 
         return eventRepository.save(event);
+    }
+
+    public az.tickit.event.dto.EventStatsResponse getEventStatistics(String eventId, String organizerEmail) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new RuntimeException("Event not found"));
+
+        if (!event.getOrganizerId().equals(organizerEmail)) {
+            throw new RuntimeException("Access denied");
+        }
+
+        // Достаем все заказы этого ивента (отсортированные от новых к старым)
+        List<Order> orders = orderRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+
+        // Считаем общую выручку
+        double totalRevenue = orders.stream()
+                .filter(o -> "SUCCESS".equals(o.getStatus()))
+                .mapToDouble(Order::getTotalAmount)
+                .sum();
+
+        // Упаковываем последние 5 заказов для таблицы
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
+        List<az.tickit.event.dto.EventStatsResponse.OrderSummary> recentOrders = orders.stream()
+                .limit(5)
+                .map(o -> {
+                    az.tickit.event.dto.EventStatsResponse.OrderSummary summary = new az.tickit.event.dto.EventStatsResponse.OrderSummary();
+                    summary.setId(o.getId().substring(o.getId().length() - 6).toUpperCase()); // Короткий ID (последние 6 символов)
+                    summary.setCustomer(o.getCustomerName());
+                    summary.setEmail(o.getCustomerEmail());
+                    summary.setType(o.getSeatIds().size() + " bilet"); // Пишем количество билетов
+                    summary.setAmount(o.getTotalAmount());
+                    summary.setDate(o.getCreatedAt().format(formatter));
+                    summary.setStatus("success");
+                    return summary;
+                })
+                .collect(Collectors.toList());
+
+        az.tickit.event.dto.EventStatsResponse response = new az.tickit.event.dto.EventStatsResponse();
+        response.setRevenue(totalRevenue);
+        response.setSold(event.getSold() != null ? event.getSold() : 0);
+        response.setTotal(event.getTotalCapacity() != null ? event.getTotalCapacity() : 0);
+        response.setViews(1420); // Пока заглушка
+        response.setConversionRate(12.5); // Пока заглушка
+        response.setRecentOrders(recentOrders);
+
+        return response;
     }
 
     public List<Event> getEventsByOrganizer(String organizerEmail) {
@@ -138,5 +194,10 @@ public class EventService {
         if (capacity <= 50) return new BigDecimal("5.00");
         if (capacity <= 100) return new BigDecimal("10.00");
         return new BigDecimal("15.00");
+    }
+
+    public Event getEventById(String id) {
+        return eventRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Event not found with id: " + id));
     }
 }

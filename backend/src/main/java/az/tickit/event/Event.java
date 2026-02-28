@@ -68,4 +68,10 @@ public class Event {
     private Object ticketDesign;
 
     private List<BuyerQuestion> buyerQuestions;
+
+    // ДОБАВИТЬ ЭТО ПОЛЕ:
+    private Integer maxTicketsPerOrder;
+
+    private List<String> soldSeats = new ArrayList<>();
+    private Integer sold = 0;
 }

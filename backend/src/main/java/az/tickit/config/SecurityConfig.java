@@ -39,7 +39,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/events/s/**").permitAll() // <--- ДОБАВЬ ЭТУ СТРОКУ
+                        .requestMatchers(HttpMethod.GET, "/api/v1/events/s/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders/create").permitAll() // <--- РАЗРЕШАЕМ ПОКУПКУ БЕЗ ТОКЕНА
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

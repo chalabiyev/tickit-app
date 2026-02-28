@@ -30,9 +30,11 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat, bounds, rowLabels }
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
+  // ИСПРАВЛЕНИЕ: Безопасно берем массив проданных мест (если с бэка пришел null, делаем пустой массив)
+  const soldSeats = event.soldSeats || [];
+
   const selectedSeatsData = useMemo(() => {
     return selectedSeats.map((key: string) => {
-      // ИСПРАВЛЕНИЕ: Используем split('_') чтобы отрицательные координаты не ломались
       const [r, c] = key.split('_').map(Number);
       const seat = event.seats.find((s: any) => s.row === r && s.col === c);
       const tier = event.tiers.find((t: any) => 
@@ -81,18 +83,36 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat, bounds, rowLabels }
                 String(t._safeId) === String(seat.tierId) || 
                 String(t.id) === String(seat.tierId)
               );
-              // ИСПРАВЛЕНИЕ: Генерируем ключ через '_'
+              
               const seatKey = `${seat.row}_${seat.col}`;
               const isSelected = selectedSeats.includes(seatKey);
+              const isSold = soldSeats.includes(seatKey); // ИСПРАВЛЕНИЕ: Проверяем, продано ли место
               
               return (
                 <button 
-                  type="button" key={seatKey} 
-                  onClick={() => tier && onToggleSeat(seatKey)} 
-                  style={{ position: 'absolute', top: (seat.row * GRID) + globalOffsetY, left: (seat.col * GRID) + globalOffsetX, width: GRID - 10, height: GRID - 10, backgroundColor: isSelected ? '#ffffff' : (tier?.color || '#334155'), color: isSelected ? '#000000' : '#ffffff' }} 
-                  className={cn("rounded-xl flex items-center justify-center text-[10px] font-bold transition-all shadow-sm", isSelected ? "ring-4 ring-primary z-10" : "hover:brightness-110", !tier && "opacity-10 cursor-not-allowed")}
+                  type="button" 
+                  key={seatKey} 
+                  // Если продано или нет тира — блокируем клик
+                  onClick={() => tier && !isSold && onToggleSeat(seatKey)} 
+                  disabled={isSold || !tier}
+                  style={{ 
+                    position: 'absolute', 
+                    top: (seat.row * GRID) + globalOffsetY, 
+                    left: (seat.col * GRID) + globalOffsetX, 
+                    width: GRID - 10, 
+                    height: GRID - 10, 
+                    backgroundColor: isSold ? '#333333' : isSelected ? '#ffffff' : (tier?.color || '#334155'), 
+                    color: isSelected ? '#000000' : '#ffffff',
+                    opacity: isSold ? 0.4 : 1 // Проданные места тусклые
+                  }} 
+                  className={cn(
+                    "rounded-xl flex items-center justify-center text-[10px] font-bold transition-all shadow-sm", 
+                    isSelected ? "ring-4 ring-primary z-10" : "hover:brightness-110", 
+                    (!tier || isSold) && "cursor-not-allowed"
+                  )}
                 >
-                  {seat.col - bounds.minC + 1}
+                  {/* ИСПРАВЛЕНИЕ: Если продано, рисуем крестик, иначе номер места */}
+                  {isSold ? <X className="w-3 h-3 opacity-50" /> : (seat.col - bounds.minC + 1)}
                 </button>
               )
             })}
@@ -142,6 +162,9 @@ export default function PublicEventPage() {
   const [buyerInfo, setBuyerInfo] = useState({ firstName: "", lastName: "", email: "" })
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [isProcessing, setIsProcessing] = useState(false)
+  
+  // ИСПРАВЛЕНИЕ: Добавляем Toast для вывода ошибок (например, лимит билетов)
+  const [toast, setToast] = useState<{ show: boolean, message: string }>({ show: false, message: '' })
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -168,11 +191,29 @@ export default function PublicEventPage() {
     if (shortLink && mounted) fetchEvent()
   }, [shortLink, mounted, locale])
 
-  const toggleSeat = (seatKey: string) => setSelectedSeats(prev => prev.includes(seatKey) ? prev.filter(k => k !== seatKey) : [...prev, seatKey])
+  const showToast = (message: string) => {
+    setToast({ show: true, message })
+    setTimeout(() => setToast({ show: false, message: '' }), 3000)
+  }
+
+  const toggleSeat = (seatKey: string) => {
+    setSelectedSeats(prev => {
+      if (prev.includes(seatKey)) {
+        return prev.filter(k => k !== seatKey);
+      } else {
+        // ИСПРАВЛЕНИЕ: Проверяем лимит билетов (Max Tickets Per Order)
+        const maxLimit = event.maxTicketsPerOrder || 10;
+        if (prev.length >= maxLimit) {
+          showToast(`Siz maksimum ${maxLimit} bilet seçə bilərsiniz.`);
+          return prev;
+        }
+        return [...prev, seatKey];
+      }
+    });
+  }
 
   const isReserved = event?.isReservedSeating
   const totalPrice = selectedSeats.reduce((sum, seatKey) => {
-    // ИСПРАВЛЕНИЕ: split('_')
     const [r, c] = seatKey.split('_').map(Number);
     const seat = event.seats.find((s: any) => s.row === r && s.col === c);
     const tier = event.tiers.find((t: any) => 
@@ -220,10 +261,29 @@ export default function PublicEventPage() {
     setIsProcessing(true);
 
     try {
+      // ИСПРАВЛЕНИЕ: Отправляем запрос на создание заказа в Spring Boot
+      const orderPayload = {
+        eventId: event.id,
+        customerName: `${buyerInfo.firstName} ${buyerInfo.lastName}`,
+        customerEmail: buyerInfo.email,
+        seatIds: selectedSeats,
+        totalAmount: totalPrice
+      };
+
+      const res = await fetch("http://72.60.135.9:8080/api/v1/orders/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderPayload)
+      });
+
+      if (!res.ok) {
+        throw new Error("Sifariş yaradılarkən xəta baş verdi. Bəzi yerlər artıq satılmış ola bilər.");
+      }
+
+      // Генерация PDF билетов
       const { jsPDF } = await import("jspdf");
 
       for (const seatKey of selectedSeats) {
-        // ИСПРАВЛЕНИЕ: split('_')
         const [r, c] = seatKey.split('_').map(Number);
         const seat = event.seats.find((s: any) => s.row === r && s.col === c);
         const tier = event.tiers.find((t: any) => 
@@ -293,11 +353,22 @@ export default function PublicEventPage() {
           pdf.save(`${event.title}_Bilet_${seatLabel.replace(/ /g, "_")}.pdf`);
         }
       }
-    } catch (err) {
-      console.error("Failed to generate PDF", err);
+      
+      setCheckoutStep(3); // Переход на страницу Успеха
+
+    } catch (err: any) {
+      console.error("Checkout failed", err);
+      showToast(err.message || "Xəta baş verdi. Yenidən cəhd edin.");
     } finally {
       setIsProcessing(false);
-      setCheckoutStep(3);
+    }
+  }
+
+  // Сброс формы при закрытии модалки (чтобы купленные места не висели в корзине при повторном открытии)
+  const closeCheckout = () => {
+    setIsCheckoutOpen(false);
+    if (checkoutStep === 3) {
+      window.location.reload(); // Перезагружаем страницу, чтобы обновить карту и показать новые серые места
     }
   }
 
@@ -354,7 +425,7 @@ export default function PublicEventPage() {
           <div className={cn("bg-card w-full border-t sm:border border-border/60 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col", isReserved && checkoutStep === 1 ? "max-w-[1300px] h-[90vh]" : "max-w-xl max-h-[92vh]")}>
             <div className="p-6 border-b flex justify-between items-center bg-secondary/10">
               <div className="flex flex-col gap-0.5"><h2 className="text-xl font-black uppercase tracking-tight">{checkoutStep === 1 ? t(locale, "selectTickets") : checkoutStep === 2 ? t(locale, "buyerDetails") : t(locale, "success")}</h2>{checkoutStep < 3 && <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{stepText}</span>}</div>
-              <Button variant="secondary" size="icon" className="rounded-xl w-10 h-10" onClick={() => setIsCheckoutOpen(false)}><X className="w-5 h-5" /></Button>
+              <Button variant="secondary" size="icon" className="rounded-xl w-10 h-10" onClick={closeCheckout}><X className="w-5 h-5" /></Button>
             </div>
             
             <div className="p-4 sm:p-8 overflow-y-auto flex-1 custom-scrollbar bg-background">
@@ -398,7 +469,7 @@ export default function PublicEventPage() {
                   <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
                   <h3 className="text-2xl font-black mb-2 uppercase tracking-tight">{t(locale, "paymentSuccessful") || "ÖDƏNİŞ UĞURLUDUR!"}</h3>
                   <p className="text-muted-foreground text-sm max-w-xs">{t(locale, "ticketsDownloaded") || "Biletləriniz PDF formatında cihazınıza yükləndi!"}</p>
-                  <Button size="lg" className="mt-8 px-10 rounded-xl font-bold" onClick={() => setIsCheckoutOpen(false)}>{t(locale, "done")}</Button>
+                  <Button size="lg" className="mt-8 px-10 rounded-xl font-bold" onClick={closeCheckout}>{t(locale, "done")}</Button>
                 </div>
               )}
             </div>
@@ -429,6 +500,15 @@ export default function PublicEventPage() {
           </div>
         </div>
       )}
+
+      {/* НОВЫЙ TOAST УВЕДОМЛЕНИЙ */}
+      {toast.show && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 px-6 py-4 rounded-full shadow-2xl border bg-destructive text-destructive-foreground animate-in slide-in-from-bottom-5 fade-in duration-300 z-[9999]">
+          <AlertCircle className="h-5 w-5" />
+          <span className="text-sm font-bold">{toast.message}</span>
+        </div>
+      )}
+
     </div>
   )
 }

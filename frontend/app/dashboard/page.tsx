@@ -14,6 +14,7 @@ import { FinancesView } from "@/components/views/finances-view"
 import { SettingsView } from "@/components/views/settings-view"
 import { CreateEventWizard } from "@/components/views/create-event-wizard"
 import { EventManageView } from "@/components/views/event-manage-view"
+import { EventStatisticsView } from "@/components/views/EventStatisticsView" // <-- ДОБАВИЛИ ИМПОРТ СТАТИСТИКИ
 import { getToken, clearToken } from "@/lib/auth"
 import { API_BASE } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -73,13 +74,15 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
           />
         )
       case "manageEvent":
+        // ВОТ ТУТ ТЕПЕРЬ ОТКРЫВАЕТСЯ СТАТИСТИКА
         return (
-          <EventManageView
+          <EventStatisticsView
             event={view.event}
             onBack={() => setView({ type: "page", page: "myEvents" })}
           />
         )
       case "editEvent":
+        // А ТУТ ОТКРЫВАЕТСЯ НАШ РЕДАКТОР
         return (
           <EventManageView
             event={view.event}
