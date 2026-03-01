@@ -19,7 +19,7 @@ export function ScannerView() {
 
     try {
       const token = localStorage.getItem("tickit_token") || "";
-      const res = await fetch(`http://localhost:8080/api/v1/orders/scan/${text}`, {
+      const res = await fetch(`http://72.60.135.9:8080/api/v1/orders/scan/${text}`, {
         method: 'POST',
         headers: { "Authorization": `Bearer ${token}` }
       });

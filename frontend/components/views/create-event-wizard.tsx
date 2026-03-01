@@ -212,9 +212,9 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
     setIsUploading(true); const formData = new FormData(); formData.append("file", file)
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://localhost:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData })
+      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData })
       if (!response.ok) throw new Error("Upload failed")
-      const data = await response.json(); setCoverImageUrl(`http://localhost:8080${data.url}`)
+      const data = await response.json(); setCoverImageUrl(`http://72.60.135.9:8080${data.url}`)
     } catch (error) { showToast("Şəkil yüklənə bilmədi / Error uploading image", "error") } 
     finally { setIsUploading(false) }
   }
@@ -256,14 +256,14 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
 
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://localhost:8080/api/v1/events", {
+      const response = await fetch("http://72.60.135.9:8080/api/v1/events", {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload)
       })
       if (!response.ok) { const errorData = await response.json().catch(() => null); throw new Error(errorData?.message || "Failed to create event.") }
       const data = await response.json()
       
-      setGeneratedLink(`http://localhost:3000/e/${data.shortLink}`)
+      setGeneratedLink(`http://72.60.135.9:3000/e/${data.shortLink}`)
       setCurrentStep(7)
     } catch (error: any) { console.error(error); setErrorMessage(error.message) } 
     finally { setIsSubmitting(false) }
@@ -484,7 +484,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
               </div>
             )}
 
-            {currentStep === 7 && (<SuccessStep generatedLink={generatedLink || "http://localhost:3000/e/sample-link"} eventName={eventTitle} onCopy={handleCopyLink} onDashboardClick={onBack} />)}
+            {currentStep === 7 && (<SuccessStep generatedLink={generatedLink || "http://72.60.135.9:3000/e/sample-link"} eventName={eventTitle} onCopy={handleCopyLink} onDashboardClick={onBack} />)}
           </div>
         </CardContent>
       </Card>

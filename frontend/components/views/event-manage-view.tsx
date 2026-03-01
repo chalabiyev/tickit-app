@@ -177,7 +177,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
     const fetchFullEvent = async () => {
       try {
         const token = localStorage.getItem("tickit_token")
-        const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
+        const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
 
@@ -196,8 +196,8 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
         if (data.coverImageUrl) {
           const imgPath = data.coverImageUrl;
           // Если ссылка уже содержит http (например, с внешнего сервера), оставляем как есть.
-          // Иначе аккуратно приклеиваем localhost, проверяя слеши.
-          setCoverImageUrl(imgPath.startsWith("http") ? imgPath : `http://localhost:8080${imgPath.startsWith("/") ? "" : "/"}${imgPath}`);
+          // Иначе аккуратно приклеиваем 72.60.135.9, проверяя слеши.
+          setCoverImageUrl(imgPath.startsWith("http") ? imgPath : `http://72.60.135.9:8080${imgPath.startsWith("/") ? "" : "/"}${imgPath}`);
         } else {
           setCoverImageUrl(null);
         }
@@ -226,7 +226,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
 
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://localhost:8080/api/v1/upload/image", {
+      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body: formData
@@ -234,7 +234,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
 
       if (!response.ok) throw new Error("Upload failed")
       const data = await response.json()
-      setCoverImageUrl(`http://localhost:8080${data.url}`)
+      setCoverImageUrl(`http://72.60.135.9:8080${data.url}`)
     } catch (error) {
       showToast("Şəkil yüklənə bilmədi", "error") 
     } finally {
@@ -263,10 +263,10 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
         isPrivate, 
         ageRestriction, 
         maxTicketsPerOrder, 
-        coverImageUrl: coverImageUrl?.replace("http://localhost:8080", "") 
+        coverImageUrl: coverImageUrl?.replace("http://72.60.135.9:8080", "") 
       }
 
-      const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
+      const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -294,7 +294,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
     setIsDeleting(true)
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
+      const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       })

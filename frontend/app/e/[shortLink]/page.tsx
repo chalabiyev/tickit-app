@@ -168,7 +168,7 @@ export default function PublicEventPage() {
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/v1/events/s/${shortLink}`, { cache: 'no-store' })
+        const res = await fetch(`http://72.60.135.9:8080/api/v1/events/s/${shortLink}`, { cache: 'no-store' })
         if (!res.ok) throw new Error("Event not found")
         const data = await res.json()
         
@@ -329,7 +329,7 @@ const handleCheckout = async () => {
       };
 
       // 1. ОТПРАВЛЯЕМ ЗАПРОС НА БЭКЕНД
-      const res = await fetch("http://localhost:8080/api/v1/orders/create", {
+      const res = await fetch("http://72.60.135.9:8080/api/v1/orders/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderPayload)
@@ -427,7 +427,7 @@ const handleCheckout = async () => {
   if (error || !event) return <div className="min-h-screen flex flex-col items-center justify-center bg-background"><h2 className="text-xl font-bold">{error}</h2></div>
 
   const minPrice = event.tiers?.length > 0 ? Math.min(...event.tiers.map((t: any) => t.price)) : 0
-  const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://localhost:8080${event.coverImageUrl}`) : DEFAULT_COVER;
+  const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://72.60.135.9:8080${event.coverImageUrl}`) : DEFAULT_COVER;
 
   return (
     <div className="min-h-screen bg-background relative selection:bg-primary/20 pb-12">

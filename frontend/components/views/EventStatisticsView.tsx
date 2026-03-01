@@ -64,7 +64,7 @@ export function EventStatisticsView({ event, onBack }: EventStatisticsViewProps)
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem("tickit_token")
-        const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}/statistics`, {
+        const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}/statistics`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
 

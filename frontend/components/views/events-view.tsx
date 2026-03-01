@@ -160,7 +160,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
         const token = localStorage.getItem("tickit_token")
         if (!token) throw new Error("No token found")
 
-        const response = await fetch("http://localhost:8080/api/v1/events/me", {
+        const response = await fetch("http://72.60.135.9:8080/api/v1/events/me", {
           headers: { "Authorization": `Bearer ${token}` }
         })
 
@@ -183,7 +183,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
             sold: 0, 
             total: ev.totalCapacity || 0,
             status: status,
-            image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://localhost:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
+            image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://72.60.135.9:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
             shortLink: ev.shortLink 
           }
         })
