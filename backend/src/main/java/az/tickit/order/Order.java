@@ -18,4 +18,6 @@ public class Order {
     private Double totalAmount;      // Общая сумма заказа (для статистики)
     private String status;           // SUCCESS, PENDING, CANCELLED
     private LocalDateTime createdAt; // Дата покупки (для графика)
+    private String customerPhone;
+    private List<OrderTicket> tickets; // ДОБАВЛЯЕМ СПИСОК БИЛЕТОВ С QR-КОДАМИ
 }

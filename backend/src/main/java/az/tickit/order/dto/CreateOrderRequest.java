@@ -10,4 +10,5 @@ public class CreateOrderRequest {
     private String customerEmail;
     private List<String> seatIds;
     private Double totalAmount;
+    private String customerPhone;
 }

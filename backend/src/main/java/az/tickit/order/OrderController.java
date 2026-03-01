@@ -17,4 +17,14 @@ public class OrderController {
         Order order = orderService.createOrder(request);
         return ResponseEntity.ok(order);
     }
+
+    @PostMapping("/scan/{qrCode}")
+    public ResponseEntity<?> scanTicket(@PathVariable String qrCode) {
+        try {
+            String result = orderService.scanTicket(qrCode);
+            return ResponseEntity.ok().body(java.util.Map.of("success", true, "message", result));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("success", false, "message", e.getMessage()));
+        }
+    }
 }

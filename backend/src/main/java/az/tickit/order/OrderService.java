@@ -8,6 +8,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,10 +41,24 @@ public class OrderService {
         order.setEventId(event.getId());
         order.setCustomerName(request.getCustomerName());
         order.setCustomerEmail(request.getCustomerEmail());
+        order.setCustomerPhone(request.getCustomerPhone());
         order.setSeatIds(request.getSeatIds());
         order.setTotalAmount(request.getTotalAmount());
         order.setStatus("SUCCESS");
         order.setCreatedAt(LocalDateTime.now());
+
+        // --- МАГИЯ QR-КОДОВ (Начало) ---
+        // Для каждого купленного места создаем отдельный билет со своим уникальным UUID
+        List<OrderTicket> generatedTickets = request.getSeatIds().stream().map(seatId -> {
+            OrderTicket ticket = new OrderTicket();
+            ticket.setSeatId(seatId);
+            ticket.setQrCode(UUID.randomUUID().toString()); // Тот самый неподбираемый QR-код
+            ticket.setScanned(false); // При покупке билет еще не отсканирован
+            return ticket;
+        }).collect(Collectors.toList());
+
+        order.setTickets(generatedTickets);
+        // --- МАГИЯ QR-КОДОВ (Конец) ---
 
         Order savedOrder = orderRepository.save(order);
 
@@ -53,5 +70,28 @@ public class OrderService {
         eventRepository.save(event);
 
         return savedOrder;
+    }
+
+    public String scanTicket(String qrCode) {
+        // 1. Ищем заказ, в котором есть этот QR-код
+        Order order = orderRepository.findByTickets_QrCode(qrCode)
+                .orElseThrow(() -> new RuntimeException("Bilet tapılmadı və ya saxtadır!")); // Билет не найден
+
+        // 2. Достаем конкретный билет из списка
+        OrderTicket matchedTicket = order.getTickets().stream()
+                .filter(t -> t.getQrCode().equals(qrCode))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Bilet tapılmadı!"));
+
+        // 3. Проверяем, не сканировали ли его раньше
+        if (matchedTicket.isScanned()) {
+            throw new RuntimeException("DİQQƏT: Bu bilet artıq istifadə olunub!"); // Билет уже использован!
+        }
+
+        // 4. Помечаем как отсканированный и сохраняем
+        matchedTicket.setScanned(true);
+        orderRepository.save(order);
+
+        return "Uğurlu! Girişə icazə verildi. (Yer: " + matchedTicket.getSeatId() + ")";
     }
 }

@@ -75,4 +75,7 @@ public class CreateEventRequest {
     private Object ticketDesign;
 
     private List<BuyerQuestion> buyerQuestions;
+
+    private String streamUrl;
+    private String streamPassword;
 }

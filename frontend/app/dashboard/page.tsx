@@ -14,7 +14,8 @@ import { FinancesView } from "@/components/views/finances-view"
 import { SettingsView } from "@/components/views/settings-view"
 import { CreateEventWizard } from "@/components/views/create-event-wizard"
 import { EventManageView } from "@/components/views/event-manage-view"
-import { EventStatisticsView } from "@/components/views/EventStatisticsView" // <-- ДОБАВИЛИ ИМПОРТ СТАТИСТИКИ
+import { EventStatisticsView } from "@/components/views/EventStatisticsView"
+import { ScannerView } from "@/components/views/ScannerView" // <-- Наш сканер
 import { getToken, clearToken } from "@/lib/auth"
 import { API_BASE } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -47,6 +48,7 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
     dashboard: t(locale, "dashboard"),
     myEvents: t(locale, "myEvents"),
     orders: t(locale, "orders"),
+    scanner: t(locale, "scanner") || "Scanner", // <-- ДОБАВИЛИ ЗАГОЛОВОК СКАНЕРА
     promocodes: t(locale, "promocodes"),
     finances: t(locale, "finances"),
     settings: t(locale, "settings"),
@@ -74,7 +76,6 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
           />
         )
       case "manageEvent":
-        // ВОТ ТУТ ТЕПЕРЬ ОТКРЫВАЕТСЯ СТАТИСТИКА
         return (
           <EventStatisticsView
             event={view.event}
@@ -82,7 +83,6 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
           />
         )
       case "editEvent":
-        // А ТУТ ОТКРЫВАЕТСЯ НАШ РЕДАКТОР
         return (
           <EventManageView
             event={view.event}
@@ -103,6 +103,8 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
             )
           case "orders":
             return <OrdersView />
+          case "scanner":           // <-- ДОБАВИЛИ КЕЙС ДЛЯ СКАНЕРА
+            return <ScannerView />  // Открываем наш компонент
           case "promocodes":
             return <PromocodesView />
           case "finances":
@@ -117,19 +119,22 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
 
   const title = getTitle()
 
-  return (
-    <div className="flex min-h-screen bg-background">
+return (
+    <div className="flex h-screen w-full bg-background overflow-hidden">
+      
+      {/* ОВЕРЛЕЙ: Затемнение фона на мобилках при открытом меню */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-20 bg-foreground/20 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
+      {/* САЙДБАР КОНТЕЙНЕР: На ПК он статичный, на мобилках выезжает слева */}
       <div
         className={cn(
-          "fixed left-0 top-0 z-30 lg:translate-x-0 transition-transform duration-200",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 w-64 transform bg-background transition-transform duration-300 ease-in-out lg:static lg:translate-x-0",
+          sidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
         )}
       >
         <AppSidebar
@@ -137,25 +142,33 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
           user={user}
           onNavigate={(page) => {
             setView({ type: "page", page })
-            setSidebarOpen(false)
+            setSidebarOpen(false) // Закрываем меню после клика
           }}
         />
       </div>
 
-      <div className="flex flex-1 flex-col lg:pl-64">
+      {/* ГЛАВНАЯ ЧАСТЬ ЭКРАНА */}
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+        
+        {/* ШАПКА: Передаем функцию открытия меню */}
         <AppHeader
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          onToggleSidebar={() => setSidebarOpen(true)}
           user={user}
           onLogout={onLogout}
         />
-        <main className="flex-1 p-6">
+        
+        {/* КОНТЕНТ */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 w-full">
           {title && (
-            <h1 className="mb-6 text-xl font-semibold tracking-tight text-foreground">
+            <h1 className="mb-4 sm:mb-6 text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               {title}
             </h1>
           )}
-          {renderView()}
+          <div className="w-full max-w-full">
+            {renderView()}
+          </div>
         </main>
+
       </div>
     </div>
   )

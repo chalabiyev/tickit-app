@@ -52,7 +52,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Указываем точный адрес фронтенда
-        configuration.setAllowedOrigins(Arrays.asList("http://72.60.135.9:3000"));
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
         // Разрешаем все методы
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         // ВАЖНО: Явно разрешаем заголовок Authorization

@@ -84,6 +84,9 @@ public class EventService {
                 .status("PUBLISHED")
                 .build();
 
+        event.setStreamUrl(request.getStreamUrl());
+        event.setStreamPassword(request.getStreamPassword());
+
         return eventRepository.save(event);
     }
 

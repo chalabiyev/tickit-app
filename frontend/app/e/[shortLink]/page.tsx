@@ -30,7 +30,6 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat, bounds, rowLabels }
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
-  // ИСПРАВЛЕНИЕ: Безопасно берем массив проданных мест (если с бэка пришел null, делаем пустой массив)
   const soldSeats = event.soldSeats || [];
 
   const selectedSeatsData = useMemo(() => {
@@ -86,24 +85,20 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat, bounds, rowLabels }
               
               const seatKey = `${seat.row}_${seat.col}`;
               const isSelected = selectedSeats.includes(seatKey);
-              const isSold = soldSeats.includes(seatKey); // ИСПРАВЛЕНИЕ: Проверяем, продано ли место
+              const isSold = soldSeats.includes(seatKey); 
               
               return (
                 <button 
                   type="button" 
                   key={seatKey} 
-                  // Если продано или нет тира — блокируем клик
                   onClick={() => tier && !isSold && onToggleSeat(seatKey)} 
                   disabled={isSold || !tier}
                   style={{ 
-                    position: 'absolute', 
-                    top: (seat.row * GRID) + globalOffsetY, 
-                    left: (seat.col * GRID) + globalOffsetX, 
-                    width: GRID - 10, 
-                    height: GRID - 10, 
+                    position: 'absolute', top: (seat.row * GRID) + globalOffsetY, left: (seat.col * GRID) + globalOffsetX, 
+                    width: GRID - 10, height: GRID - 10, 
                     backgroundColor: isSold ? '#333333' : isSelected ? '#ffffff' : (tier?.color || '#334155'), 
                     color: isSelected ? '#000000' : '#ffffff',
-                    opacity: isSold ? 0.4 : 1 // Проданные места тусклые
+                    opacity: isSold ? 0.4 : 1 
                   }} 
                   className={cn(
                     "rounded-xl flex items-center justify-center text-[10px] font-bold transition-all shadow-sm", 
@@ -111,7 +106,6 @@ function PublicSeatMap({ event, selectedSeats, onToggleSeat, bounds, rowLabels }
                     (!tier || isSold) && "cursor-not-allowed"
                   )}
                 >
-                  {/* ИСПРАВЛЕНИЕ: Если продано, рисуем крестик, иначе номер места */}
                   {isSold ? <X className="w-3 h-3 opacity-50" /> : (seat.col - bounds.minC + 1)}
                 </button>
               )
@@ -158,28 +152,31 @@ export default function PublicEventPage() {
   const [error, setError] = useState("")
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1) 
-  const [selectedSeats, setSelectedSeats] = useState<string[]>([]) 
-  const [buyerInfo, setBuyerInfo] = useState({ firstName: "", lastName: "", email: "" })
+
+  // Стейты корзины
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]) // Для карты
+  const [selectedTiers, setSelectedTiers] = useState<Record<string, number>>({}) // Для онлайна/фанзоны без карты
+
+  const [buyerInfo, setBuyerInfo] = useState({ firstName: "", lastName: "", email: "", phone: "" }) // ДОБАВЛЕН ТЕЛЕФОН
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [isProcessing, setIsProcessing] = useState(false)
   
-  // ИСПРАВЛЕНИЕ: Добавляем Toast для вывода ошибок (например, лимит билетов)
-  const [toast, setToast] = useState<{ show: boolean, message: string }>({ show: false, message: '' })
+  const [toast, setToast] = useState<{ show: boolean, message: string, type: 'error' | 'success' }>({ show: false, message: '', type: 'error' })
 
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const res = await fetch(`http://72.60.135.9:8080/api/v1/events/s/${shortLink}`)
+        const res = await fetch(`http://localhost:8080/api/v1/events/s/${shortLink}`, { cache: 'no-store' })
         if (!res.ok) throw new Error("Event not found")
         const data = await res.json()
         
-        if (data.tiers && data.seats) {
-          const usedTierIds = Array.from(new Set(data.seats.map((s: any) => String(s.tierId)).filter(Boolean)));
+        if (data.tiers) {
+          const usedTierIds = Array.from(new Set((data.seats || []).map((s: any) => String(s.tierId)).filter(Boolean)));
           data.tiers = data.tiers.map((tier: any, index: number) => {
             if (tier.tierId) return { ...tier, _safeId: String(tier.tierId) };
-            const fallbackId = usedTierIds[index] || tier.id || tier._id;
+            const fallbackId = usedTierIds[index] || tier.id || tier._id || `tier_${index}`;
             return { ...tier, _safeId: String(fallbackId) };
           });
         }
@@ -191,18 +188,21 @@ export default function PublicEventPage() {
     if (shortLink && mounted) fetchEvent()
   }, [shortLink, mounted, locale])
 
-  const showToast = (message: string) => {
-    setToast({ show: true, message })
-    setTimeout(() => setToast({ show: false, message: '' }), 3000)
+  const showToast = (message: string, type: 'error' | 'success' = 'error') => {
+    setToast({ show: true, message, type })
+    setTimeout(() => setToast({ show: false, message: '', type }), 3000)
   }
 
+  // ОПРЕДЕЛЯЕМ: Это ивент с картой или без?
+  const isReservedMap = event?.isPhysical && event?.isReservedSeating;
+
+  // Логика выбора для Карты
   const toggleSeat = (seatKey: string) => {
     setSelectedSeats(prev => {
       if (prev.includes(seatKey)) {
         return prev.filter(k => k !== seatKey);
       } else {
-        // ИСПРАВЛЕНИЕ: Проверяем лимит билетов (Max Tickets Per Order)
-        const maxLimit = event.maxTicketsPerOrder || 10;
+        const maxLimit = event?.maxTicketsPerOrder || 10;
         if (prev.length >= maxLimit) {
           showToast(`Siz maksimum ${maxLimit} bilet seçə bilərsiniz.`);
           return prev;
@@ -212,24 +212,53 @@ export default function PublicEventPage() {
     });
   }
 
-  const isReserved = event?.isReservedSeating
-  const totalPrice = selectedSeats.reduce((sum, seatKey) => {
-    const [r, c] = seatKey.split('_').map(Number);
-    const seat = event.seats.find((s: any) => s.row === r && s.col === c);
-    const tier = event.tiers.find((t: any) => 
-      String(t.tierId) === String(seat?.tierId) || 
-      String(t._safeId) === String(seat?.tierId) || 
-      String(t.id) === String(seat?.tierId)
-    );
-    return sum + (tier?.price || 0);
-  }, 0)
+  // Логика выбора для списков (Без карты)
+  const handleIncrementTier = (tierId: string) => {
+    const currentTotal = Object.values(selectedTiers).reduce((a, b) => a + b, 0);
+    const maxLimit = event?.maxTicketsPerOrder || 10;
+    if (currentTotal >= maxLimit) {
+      showToast(`Siz maksimum ${maxLimit} bilet seçə bilərsiniz.`);
+      return;
+    }
+    setSelectedTiers(prev => ({ ...prev, [tierId]: (prev[tierId] || 0) + 1 }));
+  }
+
+  const handleDecrementTier = (tierId: string) => {
+    setSelectedTiers(prev => {
+      const newQty = (prev[tierId] || 0) - 1;
+      if (newQty <= 0) {
+        const newState = { ...prev };
+        delete newState[tierId];
+        return newState;
+      }
+      return { ...prev, [tierId]: newQty };
+    });
+  }
+
+  // Универсальный подсчет
+  const totalCount = isReservedMap 
+    ? selectedSeats.length 
+    : Object.values(selectedTiers).reduce((sum, qty) => sum + qty, 0);
+
+  const totalPrice = isReservedMap 
+    ? selectedSeats.reduce((sum, seatKey) => {
+        const [r, c] = seatKey.split('_').map(Number);
+        const seat = event.seats.find((s: any) => s.row === r && s.col === c);
+        const tier = event.tiers.find((t: any) => String(t.tierId) === String(seat?.tierId) || String(t._safeId) === String(seat?.tierId));
+        return sum + (tier?.price || 0);
+      }, 0)
+    : Object.entries(selectedTiers).reduce((sum, [tierId, qty]) => {
+        const tier = event.tiers.find((t: any) => String(t._safeId) === tierId || String(t.id) === tierId);
+        return sum + ((tier?.price || 0) * qty);
+      }, 0);
 
   const stepText = (t(locale, "stepOf") || "{step} / {total} addım")
     .replace(/{step}/gi, checkoutStep.toString())
     .replace(/{total}/gi, "2");
 
   const isFormValid = useMemo(() => {
-    if (!buyerInfo.firstName.trim() || !buyerInfo.lastName.trim() || !buyerInfo.email.trim()) return false;
+    // ИСПРАВЛЕНИЕ: Телефон теперь тоже обязателен
+    if (!buyerInfo.firstName.trim() || !buyerInfo.lastName.trim() || !buyerInfo.email.trim() || !buyerInfo.phone.trim()) return false;
     if (event?.buyerQuestions && Array.isArray(event.buyerQuestions)) {
       for (const q of event.buyerQuestions) {
         if (q.required && !customAnswers[q.id]?.trim()) return false;
@@ -257,20 +286,50 @@ export default function PublicEventPage() {
     return labels;
   }, [bounds, event]);
 
-  const handleCheckout = async () => {
+const handleCheckout = async () => {
     setIsProcessing(true);
 
     try {
-      // ИСПРАВЛЕНИЕ: Отправляем запрос на создание заказа в Spring Boot
+      const finalSeatIds: string[] = [];
+      const ticketsToGenerate: any[] = [];
+
+      // Собираем данные в зависимости от типа ивента
+      if (isReservedMap) {
+        for (const seatKey of selectedSeats) {
+          finalSeatIds.push(seatKey);
+          const [r, c] = seatKey.split('_').map(Number);
+          const seat = event.seats.find((s: any) => s.row === r && s.col === c);
+          const tier = event.tiers.find((t: any) => String(t.tierId) === String(seat?.tierId) || String(t._safeId) === String(seat?.tierId));
+          ticketsToGenerate.push({
+            seatKey, tier, 
+            seatLabel: `${t(locale, "row") || "Row"} ${rowLabels[r]}, ${t(locale, "seat") || "Seat"} ${c - (bounds?.minC || 0) + 1}`
+          });
+        }
+      } else {
+        Object.entries(selectedTiers).forEach(([tierId, qty]) => {
+          const tier = event.tiers.find((t: any) => String(t._safeId) === tierId || String(t.id) === tierId);
+          for (let i = 0; i < qty; i++) {
+            const fakeSeatId = `GA_${tierId}_${Date.now()}_${i}`; // Уникальные ID
+            finalSeatIds.push(fakeSeatId);
+            ticketsToGenerate.push({
+              seatKey: fakeSeatId, tier, 
+              seatLabel: event.isPhysical ? "General Admission" : "Online Access"
+            });
+          }
+        });
+      }
+
       const orderPayload = {
         eventId: event.id,
         customerName: `${buyerInfo.firstName} ${buyerInfo.lastName}`,
         customerEmail: buyerInfo.email,
-        seatIds: selectedSeats,
+        customerPhone: buyerInfo.phone, 
+        seatIds: finalSeatIds,
         totalAmount: totalPrice
       };
 
-      const res = await fetch("http://72.60.135.9:8080/api/v1/orders/create", {
+      // 1. ОТПРАВЛЯЕМ ЗАПРОС НА БЭКЕНД
+      const res = await fetch("http://localhost:8080/api/v1/orders/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderPayload)
@@ -280,25 +339,24 @@ export default function PublicEventPage() {
         throw new Error("Sifariş yaradılarkən xəta baş verdi. Bəzi yerlər artıq satılmış ola bilər.");
       }
 
+      // 2. ПОЛУЧАЕМ ЗАКАЗ С УНИКАЛЬНЫМИ QR-КОДАМИ (UUID) ОТ БЭКЕНДА
+      const createdOrder = await res.json();
+      const backendTickets = createdOrder.tickets || []; // Массив { seatId, qrCode, isScanned }
+
       // Генерация PDF билетов
       const { jsPDF } = await import("jspdf");
 
-      for (const seatKey of selectedSeats) {
-        const [r, c] = seatKey.split('_').map(Number);
-        const seat = event.seats.find((s: any) => s.row === r && s.col === c);
-        const tier = event.tiers.find((t: any) => 
-          String(t.tierId) === String(seat?.tierId) || 
-          String(t._safeId) === String(seat?.tierId) || 
-          String(t.id) === String(seat?.tierId)
-        );
-
-        const seatLabel = `${t(locale, "row") || "Row"} ${rowLabels[r]}, ${t(locale, "seat") || "Seat"} ${c - (bounds?.minC || 0) + 1}`;
-        const ticketType = tier?.name || "Standard";
-
+      for (const tData of ticketsToGenerate) {
+        const ticketType = tData.tier?.name || "Standard";
         const design = event.ticketDesign || { bgColor: "#09090b", elements: [] };
+        
+        // 3. ИЩЕМ СВОЙ UUID ДЛЯ ЭТОГО КОНКРЕТНОГО БИЛЕТА
+        const matchedBackendTicket = backendTickets.find((t: any) => t.seatId === tData.seatKey);
+        // Если вдруг не нашли (что вряд ли), делаем фолбэк, но в идеале тут будет лежать наш секьюрный UUID
+        const realQrCodeData = matchedBackendTicket ? matchedBackendTicket.qrCode : `${event.shortLink}-${tData.seatKey}`;
+
         const canvas = document.createElement("canvas");
-        canvas.width = 400;
-        canvas.height = 800;
+        canvas.width = 400; canvas.height = 800;
         const ctx = canvas.getContext("2d");
 
         if (ctx) {
@@ -318,10 +376,10 @@ export default function PublicEventPage() {
               let text = el.content || "";
               text = text.replace(/{{Event_Name}}/gi, event.title || "");
               text = text.replace(/{{Event_Date}}/gi, event.eventDate || "");
-              text = text.replace(/{{Location}}/gi, event.venueName || event.address || "Online");
+              text = text.replace(/{{Location}}/gi, event.isPhysical ? (event.venueName || event.address) : "Online Event");
               text = text.replace(/{{Guest_Name}}/gi, `${buyerInfo.firstName} ${buyerInfo.lastName}`);
               text = text.replace(/{{Ticket_Type}}/gi, ticketType);
-              text = text.replace(/{{Seat_Info}}/gi, seatLabel);
+              text = text.replace(/{{Seat_Info}}/gi, tData.seatLabel);
 
               ctx.fillStyle = el.color || "#ffffff";
               ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 16}px ${el.fontFamily || "Arial, sans-serif"}`;
@@ -329,46 +387,38 @@ export default function PublicEventPage() {
               ctx.textBaseline = "top";
               ctx.fillText(text, el.x, el.y);
             } else if (el.type === "qr") {
-              const qrData = `${event.shortLink}-${seatKey}-${buyerInfo.email}`;
-              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${el.fontSize || 150}x${el.fontSize || 150}&data=${encodeURIComponent(qrData)}&margin=0`;
+              // ИСПРАВЛЕНИЕ: ИСПОЛЬЗУЕМ НАСТОЯЩИЙ UUID ДЛЯ ГЕНЕРАЦИИ КАРТИНКИ
+              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${el.fontSize || 150}x${el.fontSize || 150}&data=${encodeURIComponent(realQrCodeData)}&margin=0`;
               try {
-                const qrImg = new Image();
-                qrImg.crossOrigin = "anonymous";
-                qrImg.src = qrUrl;
+                const qrImg = new Image(); qrImg.crossOrigin = "anonymous"; qrImg.src = qrUrl;
                 await new Promise((resolve) => {
-                  qrImg.onload = () => {
-                    ctx.drawImage(qrImg, el.x, el.y, el.fontSize || 150, el.fontSize || 150);
-                    resolve(true);
-                  };
+                  qrImg.onload = () => { ctx.drawImage(qrImg, el.x, el.y, el.fontSize || 150, el.fontSize || 150); resolve(true); };
                   qrImg.onerror = () => resolve(false);
                 });
-              } catch (e) {
-                console.error("QR Generation failed", e);
-              }
+              } catch (e) { console.error("QR fail", e); }
             }
           }
 
           const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [400, 800] });
           pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 400, 800);
-          pdf.save(`${event.title}_Bilet_${seatLabel.replace(/ /g, "_")}.pdf`);
+          pdf.save(`${event.title}_Bilet_${tData.seatLabel.replace(/ /g, "_")}.pdf`);
         }
       }
       
-      setCheckoutStep(3); // Переход на страницу Успеха
+      setCheckoutStep(3);
 
     } catch (err: any) {
       console.error("Checkout failed", err);
-      showToast(err.message || "Xəta baş verdi. Yenidən cəhd edin.");
+      showToast(err.message || "Xəta baş verdi. Yenidən cəhd edin.", 'error');
     } finally {
       setIsProcessing(false);
     }
   }
 
-  // Сброс формы при закрытии модалки (чтобы купленные места не висели в корзине при повторном открытии)
   const closeCheckout = () => {
     setIsCheckoutOpen(false);
     if (checkoutStep === 3) {
-      window.location.reload(); // Перезагружаем страницу, чтобы обновить карту и показать новые серые места
+      window.location.reload();
     }
   }
 
@@ -377,12 +427,20 @@ export default function PublicEventPage() {
   if (error || !event) return <div className="min-h-screen flex flex-col items-center justify-center bg-background"><h2 className="text-xl font-bold">{error}</h2></div>
 
   const minPrice = event.tiers?.length > 0 ? Math.min(...event.tiers.map((t: any) => t.price)) : 0
-  const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://72.60.135.9:8080${event.coverImageUrl}`) : DEFAULT_COVER;
+  const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://localhost:8080${event.coverImageUrl}`) : DEFAULT_COVER;
 
   return (
     <div className="min-h-screen bg-background relative selection:bg-primary/20 pb-12">
+      
+      {/* ИСПРАВЛЕНИЕ: ЛОГОТИП e-tick system */}
       <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center px-6 py-4 bg-background/80 backdrop-blur-xl border-b border-white/5 shadow-sm">
-        <div className="flex items-center gap-2"><Ticket className="w-6 h-6 text-primary" /><span className="font-black tracking-[0.2em] text-lg mt-0.5 text-foreground uppercase">TICKIT</span></div>
+        <div className="flex items-center gap-2">
+          <Ticket className="w-6 h-6 text-primary" />
+          <div className="flex items-center">
+            <span className="text-xl font-black tracking-tighter text-primary">e</span>
+            <span className="text-xl font-black tracking-tighter text-foreground uppercase">ticksystem</span>
+          </div>
+        </div>
       </nav>
 
       <div className="w-full h-[50vh] lg:h-[60vh] relative overflow-hidden flex flex-col justify-end mt-[60px]">
@@ -398,19 +456,23 @@ export default function PublicEventPage() {
               <div className="flex items-start gap-4 p-5 rounded-3xl bg-secondary/40 backdrop-blur-xl border border-border/50 shadow-sm"><div className="p-3 bg-background rounded-2xl shadow-sm border border-border/50"><CalendarDays className="w-6 h-6 text-primary" /></div><div className="flex flex-col mt-0.5"><span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t(locale, "dateTime")}</span><span className="font-bold text-base text-foreground">{event.eventDate}</span><span className="text-xs font-medium text-muted-foreground">{event.startTime}</span></div></div>
               <div className="flex items-start gap-4 p-5 rounded-3xl bg-secondary/40 backdrop-blur-xl border border-border/50 shadow-sm"><div className="p-3 bg-background rounded-2xl shadow-sm border border-border/50"><MapPin className="w-6 h-6 text-primary" /></div><div className="flex flex-col mt-0.5"><span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t(locale, "location")}</span><span className="font-bold text-base text-foreground">{event.isPhysical ? event.venueName : t(locale, "onlineEvent")}</span><span className="text-xs font-medium text-muted-foreground line-clamp-2">{event.isPhysical ? event.address : t(locale, "linkProvided")}</span></div></div>
             </div>
-            <div className="flex flex-col gap-4 pb-20"><h3 className="text-2xl font-black tracking-tight">{t(locale, "aboutEvent")}</h3><p className="text-muted-foreground leading-relaxed text-base font-medium">{event.description}</p></div>
+            {/* ИСПРАВЛЕНИЕ: Вывод HTML вместо обычного текста, так как теперь у нас Rich Text */}
+            <div className="flex flex-col gap-4 pb-20">
+              <h3 className="text-2xl font-black tracking-tight">{t(locale, "aboutEvent")}</h3>
+              <div className="text-muted-foreground leading-relaxed text-base font-medium prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: event.description }} />
+            </div>
           </div>
 
           <div className="hidden lg:block w-[350px] shrink-0 sticky top-24 z-30">
             <div className="bg-card border border-border/40 shadow-2xl rounded-[2.5rem] p-8 flex flex-col">
               <div className="text-center mb-6 pt-2">
                 <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest block mb-1 opacity-60">{t(locale, "ticketsFrom")}</span>
-                <span className="text-5xl font-black text-foreground">{minPrice} ₼</span>
+                <span className="text-5xl font-black text-foreground">{minPrice === 0 ? t(locale, "free") || "Free" : `${minPrice} ₼`}</span>
               </div>
               <Separator className="my-5 bg-border/60" />
               <div className="flex flex-col gap-3 mb-8">
                 {event.tiers?.map((tier: any) => (
-                  <div key={tier.tierId || tier.id} className="flex items-center justify-between p-3.5 rounded-xl border bg-secondary/10 shadow-sm"><div className="flex items-center gap-3 font-bold text-sm"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tier.color }} />{tier.name}</div><div className="font-black text-base">{tier.price} ₼</div></div>
+                  <div key={tier.tierId || tier.id} className="flex items-center justify-between p-3.5 rounded-xl border bg-secondary/10 shadow-sm"><div className="flex items-center gap-3 font-bold text-sm"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tier.color }} />{tier.name}</div><div className="font-black text-base">{tier.price === 0 ? t(locale, "free") || "Free" : `${tier.price} ₼`}</div></div>
                 ))}
               </div>
               <Button size="lg" className="w-full h-14 font-black text-lg rounded-xl shadow-xl hover:scale-[1.02] transition-transform" onClick={() => setIsCheckoutOpen(true)}>{t(locale, "buyTickets")}</Button>
@@ -422,7 +484,7 @@ export default function PublicEventPage() {
 
       {isCheckoutOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-background/95 backdrop-blur-md sm:p-4 animate-in fade-in duration-300">
-          <div className={cn("bg-card w-full border-t sm:border border-border/60 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col", isReserved && checkoutStep === 1 ? "max-w-[1300px] h-[90vh]" : "max-w-xl max-h-[92vh]")}>
+          <div className={cn("bg-card w-full border-t sm:border border-border/60 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col", isReservedMap && checkoutStep === 1 ? "max-w-[1300px] h-[90vh]" : "max-w-xl max-h-[92vh]")}>
             <div className="p-6 border-b flex justify-between items-center bg-secondary/10">
               <div className="flex flex-col gap-0.5"><h2 className="text-xl font-black uppercase tracking-tight">{checkoutStep === 1 ? t(locale, "selectTickets") : checkoutStep === 2 ? t(locale, "buyerDetails") : t(locale, "success")}</h2>{checkoutStep < 3 && <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{stepText}</span>}</div>
               <Button variant="secondary" size="icon" className="rounded-xl w-10 h-10" onClick={closeCheckout}><X className="w-5 h-5" /></Button>
@@ -430,7 +492,35 @@ export default function PublicEventPage() {
             
             <div className="p-4 sm:p-8 overflow-y-auto flex-1 custom-scrollbar bg-background">
               {checkoutStep === 1 ? (
-                <PublicSeatMap event={event} selectedSeats={selectedSeats} onToggleSeat={toggleSeat} bounds={bounds} rowLabels={rowLabels} />
+                
+                // ИСПРАВЛЕНИЕ: Вывод карты ИЛИ списка билетов
+                isReservedMap ? (
+                  <PublicSeatMap event={event} selectedSeats={selectedSeats} onToggleSeat={toggleSeat} bounds={bounds} rowLabels={rowLabels} />
+                ) : (
+                  <div className="flex flex-col gap-4 max-w-lg mx-auto w-full animate-in fade-in slide-in-from-bottom-4">
+                    {event.tiers?.map((tier: any) => (
+                      <div key={tier._safeId || tier.id} className="flex items-center justify-between p-5 bg-card border border-border/60 rounded-2xl shadow-sm hover:border-primary/40 transition-colors">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                             <div className="w-3 h-3 rounded-full shadow-inner" style={{ backgroundColor: tier.color }} />
+                             <h3 className="font-bold text-lg text-foreground">{tier.name}</h3>
+                          </div>
+                          <span className="text-primary font-black text-xl">{tier.price === 0 ? (t(locale, "free") || "Free") : `${tier.price} ₼`}</span>
+                        </div>
+                        <div className="flex items-center gap-4 bg-secondary/20 p-2 rounded-xl border border-border/50">
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border/60 shadow-sm" onClick={() => handleDecrementTier(tier._safeId || tier.id)} disabled={!selectedTiers[tier._safeId || tier.id]}>
+                            <Minus className="w-4 h-4" />
+                          </Button>
+                          <span className="font-bold w-6 text-center text-lg">{selectedTiers[tier._safeId || tier.id] || 0}</span>
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border/60 shadow-sm text-primary" onClick={() => handleIncrementTier(tier._safeId || tier.id)}>
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+
               ) : checkoutStep === 2 ? (
                 <div className="flex flex-col gap-8 p-2 animate-in fade-in slide-in-from-right-4">
                   <div className="flex flex-col gap-4">
@@ -439,7 +529,11 @@ export default function PublicEventPage() {
                       <Input className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "firstName") || "Ad"} value={buyerInfo.firstName} onChange={e => setBuyerInfo({...buyerInfo, firstName: e.target.value})} />
                       <Input className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "lastName") || "Soyad"} value={buyerInfo.lastName} onChange={e => setBuyerInfo({...buyerInfo, lastName: e.target.value})} />
                     </div>
-                    <Input type="email" className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "emailAddress") || "E-poçt"} value={buyerInfo.email} onChange={e => setBuyerInfo({...buyerInfo, email: e.target.value})} />
+                    {/* ИСПРАВЛЕНИЕ: Поле телефона */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Input type="email" className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "emailAddress") || "E-poçt"} value={buyerInfo.email} onChange={e => setBuyerInfo({...buyerInfo, email: e.target.value})} />
+                      <Input type="tel" className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "phoneNumber") || "Telefon"} value={buyerInfo.phone} onChange={e => setBuyerInfo({...buyerInfo, phone: e.target.value})} />
+                    </div>
                   </div>
 
                   {event.buyerQuestions && event.buyerQuestions.length > 0 && (
@@ -482,7 +576,7 @@ export default function PublicEventPage() {
                     <span className="text-4xl font-black text-primary tracking-tighter">{totalPrice}</span>
                     <span className="text-lg font-black text-primary">₼</span>
                   </div>
-                  <span className="text-[10px] font-black text-muted-foreground uppercase mt-1">{selectedSeats.length} {t(locale, "ticketsSelected")}</span>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase mt-1">{totalCount} {t(locale, "ticketsSelected")}</span>
                 </div>
                 <div className="flex gap-3 w-full sm:w-auto">
                   {checkoutStep === 2 && <Button variant="outline" size="lg" className="h-14 px-8 rounded-xl font-bold" onClick={() => setCheckoutStep(1)}>{t(locale, "back") || "Geri"}</Button>}
@@ -490,9 +584,16 @@ export default function PublicEventPage() {
                     size="lg" 
                     className={cn("h-14 px-10 rounded-xl font-black text-lg flex-1 sm:flex-none shadow-xl", checkoutStep === 2 ? "bg-green-600 hover:bg-green-700" : "bg-primary")} 
                     onClick={() => checkoutStep === 1 ? setCheckoutStep(2) : handleCheckout()} 
-                    disabled={checkoutStep === 1 ? selectedSeats.length === 0 : (!isFormValid || isProcessing)}
+                    disabled={checkoutStep === 1 ? totalCount === 0 : (!isFormValid || isProcessing)}
                   >
-                    {isProcessing ? <Loader2 className="animate-spin w-5 h-5" /> : checkoutStep === 1 ? (t(locale, "continueBtn") || "Davam et") : (t(locale, "payNow") || "İndi Ödə")}
+                    {isProcessing ? (
+                      <Loader2 className="animate-spin w-5 h-5" />
+                    ) : checkoutStep === 1 ? (
+                      t(locale, "continueBtn") || "Davam et"
+                    ) : (
+                      /* ИСПРАВЛЕНИЕ: Если бесплатно, пишем "Зарегистрироваться" */
+                      totalPrice === 0 ? (t(locale, "register") || "Qeydiyyatdan keç") : (t(locale, "payNow") || "İndi Ödə")
+                    )}
                   </Button>
                 </div>
               </div>
@@ -501,9 +602,8 @@ export default function PublicEventPage() {
         </div>
       )}
 
-      {/* НОВЫЙ TOAST УВЕДОМЛЕНИЙ */}
       {toast.show && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 px-6 py-4 rounded-full shadow-2xl border bg-destructive text-destructive-foreground animate-in slide-in-from-bottom-5 fade-in duration-300 z-[9999]">
+        <div className={cn("fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 px-6 py-4 rounded-full shadow-2xl border text-white animate-in slide-in-from-bottom-5 fade-in duration-300 z-[9999]", toast.type === 'error' ? "bg-destructive border-destructive" : "bg-green-600 border-green-600")}>
           <AlertCircle className="h-5 w-5" />
           <span className="text-sm font-bold">{toast.message}</span>
         </div>

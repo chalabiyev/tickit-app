@@ -74,4 +74,7 @@ public class Event {
 
     private List<String> soldSeats = new ArrayList<>();
     private Integer sold = 0;
+
+    private String streamUrl;
+    private String streamPassword;
 }

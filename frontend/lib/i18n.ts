@@ -302,7 +302,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     noSeatsSelected: "Xəritədə yer seçin",
     stepOf: "{step} / {total} addım",
     row: "Sıra",
-    seat: "Yer"
+    seat: "Yer",
+    onlineStreamingDetails: "Onlayn Yayım Detalları",
+    streamUrlLabel: "Yayım Linki (Zoom, YouTube və s.)",
+    streamPasswordLabel: "Şifrə / Təlimatlar (İstəyə bağlı)",
+    streamInfoText: "Bu link bilet uğurla alındıqdan sonra avtomatik olaraq iştirakçılara e-poçt vasitəsilə göndəriləcək.",
+    phoneNumber: "Telefon nömrəsi",
+    scanner: "Skaner",
   },
   ru: {
     dashboard: "Панель",
@@ -604,7 +610,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     noSeatsSelected: "Выберите места на карте",
     stepOf: "Шаг {step} из {total}",
     row: "Ряд",
-    seat: "Место"
+    seat: "Место",
+    onlineStreamingDetails: "Детали онлайн-трансляции",
+    streamUrlLabel: "Ссылка на трансляцию (Zoom, YouTube и т.д.)",
+    streamPasswordLabel: "Пароль / Инструкции (Необязательно)",
+    streamInfoText: "Эта ссылка будет автоматически отправлена участникам по электронной почте после успешной покупки билета.",
+    phoneNumber: "Номер телефона",
+    scanner: "Сканер",
   },
   tr: {
     dashboard: "Panel",
@@ -906,7 +918,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     noSeatsSelected: "Haritadan koltuk seçin",
     stepOf: "Adım {step} / {total}",
     row: "Sıra",
-    seat: "Koltuk"
+    seat: "Koltuk",
+    onlineStreamingDetails: "Çevrimiçi Yayın Detayları",
+    streamUrlLabel: "Yayın Bağlantısı (Zoom, YouTube vb.)",
+    streamPasswordLabel: "Şifre / Talimatlar (İsteğe bağlı)",
+    streamInfoText: "Bu bağlantı, bilet başarıyla satın alındıktan sonra katılımcılara otomatik olarak e-posta ile gönderilecektir.",
+    phoneNumber: "Telefon Numarası",
+    scanner: "Tarayıcı",
   },
 }
 
