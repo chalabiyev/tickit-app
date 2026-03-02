@@ -20,4 +20,8 @@ public class Order {
     private LocalDateTime createdAt; // Дата покупки (для графика)
     private String customerPhone;
     private List<OrderTicket> tickets; // ДОБАВЛЯЕМ СПИСОК БИЛЕТОВ С QR-КОДАМИ
+
+    // ... внутри класса Order
+    private Double originalAmount; // Цена до скидки
+    private String promoCode;      // Примененный код
 }

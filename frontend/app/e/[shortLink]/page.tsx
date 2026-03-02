@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { 
   CalendarDays, MapPin, Ticket, AlertCircle, Loader2, 
-  X, Plus, Minus, ShieldCheck, CheckCircle2, ReceiptText
+  X, Plus, Minus, ShieldCheck, CheckCircle2, ReceiptText,
+  Tag, Check
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -153,11 +154,17 @@ export default function PublicEventPage() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1) 
 
-  // Стейты корзины
-  const [selectedSeats, setSelectedSeats] = useState<string[]>([]) // Для карты
-  const [selectedTiers, setSelectedTiers] = useState<Record<string, number>>({}) // Для онлайна/фанзоны без карты
+  // Промокоды
+  const [promoInput, setPromoInput] = useState("")
+  const [appliedPromo, setAppliedPromo] = useState<any>(null)
+  const [promoError, setPromoError] = useState("")
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false)
 
-  const [buyerInfo, setBuyerInfo] = useState({ firstName: "", lastName: "", email: "", phone: "" }) // ДОБАВЛЕН ТЕЛЕФОН
+  // Стейты корзины
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([])
+  const [selectedTiers, setSelectedTiers] = useState<Record<string, number>>({})
+
+  const [buyerInfo, setBuyerInfo] = useState({ firstName: "", lastName: "", email: "", phone: "" })
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [isProcessing, setIsProcessing] = useState(false)
   
@@ -168,7 +175,7 @@ export default function PublicEventPage() {
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const res = await fetch(`http://72.60.135.9:8080/api/v1/events/s/${shortLink}`, { cache: 'no-store' })
+        const res = await fetch(`http://localhost:8080/api/v1/events/s/${shortLink}`, { cache: 'no-store' })
         if (!res.ok) throw new Error("Event not found")
         const data = await res.json()
         
@@ -180,7 +187,6 @@ export default function PublicEventPage() {
             return { ...tier, _safeId: String(fallbackId) };
           });
         }
-        
         setEvent(data)
       } catch (err: any) { setError(t(locale, "eventNotFound") || "Not found") } 
       finally { setLoading(false) }
@@ -193,26 +199,66 @@ export default function PublicEventPage() {
     setTimeout(() => setToast({ show: false, message: '', type }), 3000)
   }
 
-  // ОПРЕДЕЛЯЕМ: Это ивент с картой или без?
+  // --- ИСПРАВЛЕННАЯ ЛОГИКА ПРОМОКОДА ---
+  const handleApplyPromo = async () => {
+    if (!promoInput.trim()) return;
+    setIsValidatingPromo(true);
+    setPromoError("");
+    try {
+      const res = await fetch(`http://localhost:8080/api/v1/promocodes/validate?code=${promoInput}&eventId=${event.id}`);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Promo-kod yanlışdır");
+      }
+      const data = await res.json();
+
+      // Проверка: Подходит ли этот код хоть к одному выбранному билету?
+      const promoTiers = data.applicableTierIds || [];
+      let isApplicableToCurrentSelection = false;
+
+      if (promoTiers.length === 0) {
+        isApplicableToCurrentSelection = true; // Действует на все тиры
+      } else {
+        if (isReservedMap) {
+          isApplicableToCurrentSelection = selectedSeats.some(seatKey => {
+            const [r, c] = seatKey.split('_').map(Number);
+            const seat = event.seats.find((s: any) => s.row === r && s.col === c);
+            const tId = String(seat?.tierId);
+            return promoTiers.includes(tId);
+          });
+        } else {
+          isApplicableToCurrentSelection = Object.keys(selectedTiers).some(tId => promoTiers.includes(tId) && selectedTiers[tId] > 0);
+        }
+      }
+
+      if (!isApplicableToCurrentSelection) {
+        throw new Error("Bu promo-kod seçdiyiniz bilet növləri üçün keçərli deyil");
+      }
+
+      setAppliedPromo(data);
+      showToast("Promo-kod tətbiq edildi!", "success");
+    } catch (err: any) {
+      setPromoError(err.message);
+      setAppliedPromo(null);
+    } finally {
+      setIsValidatingPromo(false);
+    }
+  }
+
   const isReservedMap = event?.isPhysical && event?.isReservedSeating;
 
-  // Логика выбора для Карты
   const toggleSeat = (seatKey: string) => {
     setSelectedSeats(prev => {
-      if (prev.includes(seatKey)) {
-        return prev.filter(k => k !== seatKey);
-      } else {
-        const maxLimit = event?.maxTicketsPerOrder || 10;
-        if (prev.length >= maxLimit) {
-          showToast(`Siz maksimum ${maxLimit} bilet seçə bilərsiniz.`);
-          return prev;
-        }
-        return [...prev, seatKey];
+      if (prev.includes(seatKey)) return prev.filter(k => k !== seatKey);
+      const maxLimit = event?.maxTicketsPerOrder || 10;
+      if (prev.length >= maxLimit) {
+        showToast(`Siz maksimum ${maxLimit} bilet seçə bilərsiniz.`);
+        return prev;
       }
+      return [...prev, seatKey];
     });
   }
 
-  // Логика выбора для списков (Без карты)
   const handleIncrementTier = (tierId: string) => {
     const currentTotal = Object.values(selectedTiers).reduce((a, b) => a + b, 0);
     const maxLimit = event?.maxTicketsPerOrder || 10;
@@ -235,29 +281,77 @@ export default function PublicEventPage() {
     });
   }
 
-  // Универсальный подсчет
-  const totalCount = isReservedMap 
-    ? selectedSeats.length 
-    : Object.values(selectedTiers).reduce((sum, qty) => sum + qty, 0);
-
-  const totalPrice = isReservedMap 
-    ? selectedSeats.reduce((sum, seatKey) => {
+  const baseTotalPrice = useMemo(() => {
+    if (isReservedMap) {
+      return selectedSeats.reduce((sum, seatKey) => {
         const [r, c] = seatKey.split('_').map(Number);
         const seat = event.seats.find((s: any) => s.row === r && s.col === c);
         const tier = event.tiers.find((t: any) => String(t.tierId) === String(seat?.tierId) || String(t._safeId) === String(seat?.tierId));
         return sum + (tier?.price || 0);
       }, 0)
-    : Object.entries(selectedTiers).reduce((sum, [tierId, qty]) => {
+    } else {
+      return Object.entries(selectedTiers).reduce((sum, [tierId, qty]) => {
         const tier = event.tiers.find((t: any) => String(t._safeId) === tierId || String(t.id) === tierId);
         return sum + ((tier?.price || 0) * qty);
       }, 0);
+    }
+  }, [isReservedMap, selectedSeats, selectedTiers, event]);
+
+  // --- ИСПРАВЛЕННЫЙ УМНЫЙ РАСЧЕТ ЦЕНЫ (ТОЛЬКО ДЛЯ НУЖНЫХ ТИРОВ) ---
+  const finalTotalPrice = useMemo(() => {
+    if (!appliedPromo) return baseTotalPrice;
+
+    let discountableSum = 0;
+    let nonDiscountableSum = 0;
+    const promoTiers = appliedPromo.applicableTierIds || [];
+
+    if (isReservedMap) {
+      selectedSeats.forEach(seatKey => {
+        const [r, c] = seatKey.split('_').map(Number);
+        const seat = event.seats.find((s: any) => s.row === r && s.col === c);
+        const tier = event.tiers.find((t: any) => 
+          String(t.tierId) === String(seat?.tierId) || 
+          String(t._safeId) === String(seat?.tierId) ||
+          String(t.id) === String(seat?.tierId)
+        );
+        const price = tier?.price || 0;
+        
+        const isEligible = promoTiers.length === 0 || promoTiers.includes(String(tier?.tierId)) || promoTiers.includes(String(tier?._safeId)) || promoTiers.includes(String(tier?.id));
+        
+        if (isEligible) discountableSum += price;
+        else nonDiscountableSum += price;
+      });
+    } else {
+      Object.entries(selectedTiers).forEach(([tierId, qty]) => {
+        if (qty <= 0) return;
+        const tier = event.tiers.find((t: any) => String(t._safeId) === tierId || String(t.id) === tierId);
+        const price = tier?.price || 0;
+        const isEligible = promoTiers.length === 0 || promoTiers.includes(tierId);
+        
+        if (isEligible) discountableSum += (price * qty);
+        else nonDiscountableSum += (price * qty);
+      });
+    }
+
+    let discountedPart = discountableSum;
+    if (appliedPromo.type === "PERCENTAGE") {
+      discountedPart = discountableSum - (discountableSum * (appliedPromo.value / 100));
+    } else if (appliedPromo.type === "FIXED") {
+      discountedPart = Math.max(0, discountableSum - appliedPromo.value);
+    }
+
+    return Math.round(discountedPart + nonDiscountableSum);
+  }, [baseTotalPrice, appliedPromo, isReservedMap, selectedSeats, selectedTiers, event]);
+
+  const totalCount = isReservedMap 
+    ? selectedSeats.length 
+    : Object.values(selectedTiers).reduce((sum, qty) => sum + qty, 0);
 
   const stepText = (t(locale, "stepOf") || "{step} / {total} addım")
     .replace(/{step}/gi, checkoutStep.toString())
     .replace(/{total}/gi, "2");
 
   const isFormValid = useMemo(() => {
-    // ИСПРАВЛЕНИЕ: Телефон теперь тоже обязателен
     if (!buyerInfo.firstName.trim() || !buyerInfo.lastName.trim() || !buyerInfo.email.trim() || !buyerInfo.phone.trim()) return false;
     if (event?.buyerQuestions && Array.isArray(event.buyerQuestions)) {
       for (const q of event.buyerQuestions) {
@@ -293,7 +387,6 @@ const handleCheckout = async () => {
       const finalSeatIds: string[] = [];
       const ticketsToGenerate: any[] = [];
 
-      // Собираем данные в зависимости от типа ивента
       if (isReservedMap) {
         for (const seatKey of selectedSeats) {
           finalSeatIds.push(seatKey);
@@ -309,7 +402,7 @@ const handleCheckout = async () => {
         Object.entries(selectedTiers).forEach(([tierId, qty]) => {
           const tier = event.tiers.find((t: any) => String(t._safeId) === tierId || String(t.id) === tierId);
           for (let i = 0; i < qty; i++) {
-            const fakeSeatId = `GA_${tierId}_${Date.now()}_${i}`; // Уникальные ID
+            const fakeSeatId = `GA_${tierId}_${Date.now()}_${i}`;
             finalSeatIds.push(fakeSeatId);
             ticketsToGenerate.push({
               seatKey: fakeSeatId, tier, 
@@ -325,34 +418,33 @@ const handleCheckout = async () => {
         customerEmail: buyerInfo.email,
         customerPhone: buyerInfo.phone, 
         seatIds: finalSeatIds,
-        totalAmount: totalPrice
+        totalAmount: finalTotalPrice, 
+        promocodeId: appliedPromo?.id || null 
       };
 
-      // 1. ОТПРАВЛЯЕМ ЗАПРОС НА БЭКЕНД
-      const res = await fetch("http://72.60.135.9:8080/api/v1/orders/create", {
+      const res = await fetch("http://localhost:8080/api/v1/orders/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderPayload)
       });
 
       if (!res.ok) {
-        throw new Error("Sifariş yaradılarkən xəta baş verdi. Bəzi yerlər artıq satılmış ola bilər.");
+        let errorText = "Sifariş yaradılarkən xəta baş verdi.";
+        try {
+          const errData = await res.json();
+          errorText = errData.message || errorText;
+        } catch (e) {}
+        throw new Error(errorText);
       }
 
-      // 2. ПОЛУЧАЕМ ЗАКАЗ С УНИКАЛЬНЫМИ QR-КОДАМИ (UUID) ОТ БЭКЕНДА
       const createdOrder = await res.json();
-      const backendTickets = createdOrder.tickets || []; // Массив { seatId, qrCode, isScanned }
-
-      // Генерация PDF билетов
+      const backendTickets = createdOrder.tickets || [];
       const { jsPDF } = await import("jspdf");
 
       for (const tData of ticketsToGenerate) {
         const ticketType = tData.tier?.name || "Standard";
         const design = event.ticketDesign || { bgColor: "#09090b", elements: [] };
-        
-        // 3. ИЩЕМ СВОЙ UUID ДЛЯ ЭТОГО КОНКРЕТНОГО БИЛЕТА
         const matchedBackendTicket = backendTickets.find((t: any) => t.seatId === tData.seatKey);
-        // Если вдруг не нашли (что вряд ли), делаем фолбэк, но в идеале тут будет лежать наш секьюрный UUID
         const realQrCodeData = matchedBackendTicket ? matchedBackendTicket.qrCode : `${event.shortLink}-${tData.seatKey}`;
 
         const canvas = document.createElement("canvas");
@@ -362,7 +454,6 @@ const handleCheckout = async () => {
         if (ctx) {
           ctx.fillStyle = design.bgColor || "#09090b";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
-
           const elements = design.elements && design.elements.length > 0 ? design.elements : [
             { type: 'text', x: 24, y: 100, content: '{{Event_Name}}', color: '#ffffff', fontSize: 32, fontWeight: 'bold' },
             { type: 'text', x: 24, y: 150, content: '{{Event_Date}}', color: '#a1a1aa', fontSize: 14 },
@@ -380,36 +471,27 @@ const handleCheckout = async () => {
               text = text.replace(/{{Guest_Name}}/gi, `${buyerInfo.firstName} ${buyerInfo.lastName}`);
               text = text.replace(/{{Ticket_Type}}/gi, ticketType);
               text = text.replace(/{{Seat_Info}}/gi, tData.seatLabel);
-
               ctx.fillStyle = el.color || "#ffffff";
-              ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 16}px ${el.fontFamily || "Arial, sans-serif"}`;
-              ctx.textAlign = el.textAlign || "left";
+              ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 16}px Arial`;
               ctx.textBaseline = "top";
               ctx.fillText(text, el.x, el.y);
             } else if (el.type === "qr") {
-              // ИСПРАВЛЕНИЕ: ИСПОЛЬЗУЕМ НАСТОЯЩИЙ UUID ДЛЯ ГЕНЕРАЦИИ КАРТИНКИ
-              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${el.fontSize || 150}x${el.fontSize || 150}&data=${encodeURIComponent(realQrCodeData)}&margin=0`;
-              try {
-                const qrImg = new Image(); qrImg.crossOrigin = "anonymous"; qrImg.src = qrUrl;
-                await new Promise((resolve) => {
-                  qrImg.onload = () => { ctx.drawImage(qrImg, el.x, el.y, el.fontSize || 150, el.fontSize || 150); resolve(true); };
-                  qrImg.onerror = () => resolve(false);
-                });
-              } catch (e) { console.error("QR fail", e); }
+              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${el.fontSize}x${el.fontSize}&data=${encodeURIComponent(realQrCodeData)}`;
+              const qrImg = new Image(); qrImg.crossOrigin = "anonymous"; qrImg.src = qrUrl;
+              await new Promise((resolve) => {
+                qrImg.onload = () => { ctx.drawImage(qrImg, el.x, el.y, el.fontSize, el.fontSize); resolve(true); };
+                qrImg.onerror = () => resolve(false);
+              });
             }
           }
-
           const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [400, 800] });
           pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 400, 800);
-          pdf.save(`${event.title}_Bilet_${tData.seatLabel.replace(/ /g, "_")}.pdf`);
+          pdf.save(`${event.title}_Bilet.pdf`);
         }
       }
-      
       setCheckoutStep(3);
-
     } catch (err: any) {
-      console.error("Checkout failed", err);
-      showToast(err.message || "Xəta baş verdi. Yenidən cəhd edin.", 'error');
+      showToast(err.message || "Xəta baş verdi.", 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -417,9 +499,7 @@ const handleCheckout = async () => {
 
   const closeCheckout = () => {
     setIsCheckoutOpen(false);
-    if (checkoutStep === 3) {
-      window.location.reload();
-    }
+    if (checkoutStep === 3) window.location.reload();
   }
 
   if (!mounted) return null;
@@ -427,12 +507,10 @@ const handleCheckout = async () => {
   if (error || !event) return <div className="min-h-screen flex flex-col items-center justify-center bg-background"><h2 className="text-xl font-bold">{error}</h2></div>
 
   const minPrice = event.tiers?.length > 0 ? Math.min(...event.tiers.map((t: any) => t.price)) : 0
-  const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://72.60.135.9:8080${event.coverImageUrl}`) : DEFAULT_COVER;
+  const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://localhost:8080${event.coverImageUrl}`) : DEFAULT_COVER;
 
   return (
     <div className="min-h-screen bg-background relative selection:bg-primary/20 pb-12">
-      
-      {/* ИСПРАВЛЕНИЕ: ЛОГОТИП e-tick system */}
       <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center px-6 py-4 bg-background/80 backdrop-blur-xl border-b border-white/5 shadow-sm">
         <div className="flex items-center gap-2">
           <Ticket className="w-6 h-6 text-primary" />
@@ -446,7 +524,10 @@ const handleCheckout = async () => {
       <div className="w-full h-[50vh] lg:h-[60vh] relative overflow-hidden flex flex-col justify-end mt-[60px]">
         <img src={coverUrl} className="absolute inset-0 w-full h-full object-cover z-0" crossOrigin="anonymous" alt="Poster" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-black/30 z-10" />
-        <div className="relative z-20 max-w-6xl mx-auto px-6 w-full pb-20"><Badge className="mb-4 bg-primary text-primary-foreground uppercase tracking-widest font-black px-3 py-1">{event.category || "Event"}</Badge><h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-foreground drop-shadow-2xl leading-tight">{event.title}</h1></div>
+        <div className="relative z-20 max-w-6xl mx-auto px-6 w-full pb-20">
+          <Badge className="mb-4 bg-primary text-primary-foreground uppercase tracking-widest font-black px-3 py-1">{event.category || "Event"}</Badge>
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-foreground drop-shadow-2xl leading-tight">{event.title}</h1>
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6 relative z-20 -mt-16">
@@ -456,27 +537,36 @@ const handleCheckout = async () => {
               <div className="flex items-start gap-4 p-5 rounded-3xl bg-secondary/40 backdrop-blur-xl border border-border/50 shadow-sm"><div className="p-3 bg-background rounded-2xl shadow-sm border border-border/50"><CalendarDays className="w-6 h-6 text-primary" /></div><div className="flex flex-col mt-0.5"><span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t(locale, "dateTime")}</span><span className="font-bold text-base text-foreground">{event.eventDate}</span><span className="text-xs font-medium text-muted-foreground">{event.startTime}</span></div></div>
               <div className="flex items-start gap-4 p-5 rounded-3xl bg-secondary/40 backdrop-blur-xl border border-border/50 shadow-sm"><div className="p-3 bg-background rounded-2xl shadow-sm border border-border/50"><MapPin className="w-6 h-6 text-primary" /></div><div className="flex flex-col mt-0.5"><span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t(locale, "location")}</span><span className="font-bold text-base text-foreground">{event.isPhysical ? event.venueName : t(locale, "onlineEvent")}</span><span className="text-xs font-medium text-muted-foreground line-clamp-2">{event.isPhysical ? event.address : t(locale, "linkProvided")}</span></div></div>
             </div>
-            {/* ИСПРАВЛЕНИЕ: Вывод HTML вместо обычного текста, так как теперь у нас Rich Text */}
             <div className="flex flex-col gap-4 pb-20">
               <h3 className="text-2xl font-black tracking-tight">{t(locale, "aboutEvent")}</h3>
-              <div className="text-muted-foreground leading-relaxed text-base font-medium prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: event.description }} />
+              <div className="text-muted-foreground leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: event.description }} />
             </div>
           </div>
 
           <div className="hidden lg:block w-[350px] shrink-0 sticky top-24 z-30">
             <div className="bg-card border border-border/40 shadow-2xl rounded-[2.5rem] p-8 flex flex-col">
-              <div className="text-center mb-6 pt-2">
-                <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest block mb-1 opacity-60">{t(locale, "ticketsFrom")}</span>
-                <span className="text-5xl font-black text-foreground">{minPrice === 0 ? t(locale, "free") || "Free" : `${minPrice} ₼`}</span>
-              </div>
-              <Separator className="my-5 bg-border/60" />
-              <div className="flex flex-col gap-3 mb-8">
-                {event.tiers?.map((tier: any) => (
-                  <div key={tier.tierId || tier.id} className="flex items-center justify-between p-3.5 rounded-xl border bg-secondary/10 shadow-sm"><div className="flex items-center gap-3 font-bold text-sm"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tier.color }} />{tier.name}</div><div className="font-black text-base">{tier.price === 0 ? t(locale, "free") || "Free" : `${tier.price} ₼`}</div></div>
-                ))}
-              </div>
-              <Button size="lg" className="w-full h-14 font-black text-lg rounded-xl shadow-xl hover:scale-[1.02] transition-transform" onClick={() => setIsCheckoutOpen(true)}>{t(locale, "buyTickets")}</Button>
-              <div className="flex items-center justify-center gap-2 mt-5 text-muted-foreground opacity-60"><ShieldCheck className="w-4 h-4 text-green-500" /><span className="text-[10px] font-bold uppercase tracking-widest">{t(locale, "secureCheckout")}</span></div>
+              {event.status === "PAUSED" ? (
+                <div className="flex flex-col items-center justify-center text-center py-6">
+                  <div className="h-16 w-16 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mb-4"><AlertCircle className="h-8 w-8" /></div>
+                  <h3 className="font-black text-xl text-foreground mb-2 uppercase tracking-tight">Satış dayandırılıb</h3>
+                  <p className="text-sm font-medium text-muted-foreground">Bu tədbir üçün bilet satışı müvəqqəti olaraq dayandırılmışdır.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center mb-6 pt-2">
+                    <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest block mb-1 opacity-60">{t(locale, "ticketsFrom")}</span>
+                    <span className="text-5xl font-black text-foreground">{minPrice === 0 ? t(locale, "free") || "Free" : `${minPrice} ₼`}</span>
+                  </div>
+                  <Separator className="my-5 bg-border/60" />
+                  <div className="flex flex-col gap-3 mb-8">
+                    {event.tiers?.map((tier: any) => (
+                      <div key={tier.tierId || tier.id} className="flex items-center justify-between p-3.5 rounded-xl border bg-secondary/10 shadow-sm"><div className="flex items-center gap-3 font-bold text-sm"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tier.color }} />{tier.name}</div><div className="font-black text-base">{tier.price === 0 ? t(locale, "free") || "Free" : `${tier.price} ₼`}</div></div>
+                    ))}
+                  </div>
+                  <Button size="lg" className="w-full h-14 font-black text-lg rounded-xl shadow-xl hover:scale-[1.02] transition-transform" onClick={() => setIsCheckoutOpen(true)}>{t(locale, "buyTickets")}</Button>
+                  <div className="flex items-center justify-center gap-2 mt-5 text-muted-foreground opacity-60"><ShieldCheck className="w-4 h-4 text-green-500" /><span className="text-[10px] font-bold uppercase tracking-widest">{t(locale, "secureCheckout")}</span></div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -492,77 +582,88 @@ const handleCheckout = async () => {
             
             <div className="p-4 sm:p-8 overflow-y-auto flex-1 custom-scrollbar bg-background">
               {checkoutStep === 1 ? (
-                
-                // ИСПРАВЛЕНИЕ: Вывод карты ИЛИ списка билетов
                 isReservedMap ? (
                   <PublicSeatMap event={event} selectedSeats={selectedSeats} onToggleSeat={toggleSeat} bounds={bounds} rowLabels={rowLabels} />
                 ) : (
-                  <div className="flex flex-col gap-4 max-w-lg mx-auto w-full animate-in fade-in slide-in-from-bottom-4">
+                  <div className="flex flex-col gap-4 max-w-lg mx-auto w-full">
                     {event.tiers?.map((tier: any) => (
                       <div key={tier._safeId || tier.id} className="flex items-center justify-between p-5 bg-card border border-border/60 rounded-2xl shadow-sm hover:border-primary/40 transition-colors">
                         <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                             <div className="w-3 h-3 rounded-full shadow-inner" style={{ backgroundColor: tier.color }} />
-                             <h3 className="font-bold text-lg text-foreground">{tier.name}</h3>
-                          </div>
+                          <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-inner" style={{ backgroundColor: tier.color }} /><h3 className="font-bold text-lg text-foreground">{tier.name}</h3></div>
                           <span className="text-primary font-black text-xl">{tier.price === 0 ? (t(locale, "free") || "Free") : `${tier.price} ₼`}</span>
                         </div>
                         <div className="flex items-center gap-4 bg-secondary/20 p-2 rounded-xl border border-border/50">
-                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border/60 shadow-sm" onClick={() => handleDecrementTier(tier._safeId || tier.id)} disabled={!selectedTiers[tier._safeId || tier.id]}>
-                            <Minus className="w-4 h-4" />
-                          </Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDecrementTier(tier._safeId || tier.id)} disabled={!selectedTiers[tier._safeId || tier.id]}><Minus className="w-4 h-4" /></Button>
                           <span className="font-bold w-6 text-center text-lg">{selectedTiers[tier._safeId || tier.id] || 0}</span>
-                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border/60 shadow-sm text-primary" onClick={() => handleIncrementTier(tier._safeId || tier.id)}>
-                            <Plus className="w-4 h-4" />
-                          </Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleIncrementTier(tier._safeId || tier.id)}><Plus className="w-4 h-4" /></Button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )
-
               ) : checkoutStep === 2 ? (
-                <div className="flex flex-col gap-8 p-2 animate-in fade-in slide-in-from-right-4">
+                <div className="flex flex-col gap-8 p-2">
                   <div className="flex flex-col gap-4">
                     <Label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t(locale, "contactInfo") || "Contact Info"}</Label>
                     <div className="grid grid-cols-2 gap-3">
                       <Input className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "firstName") || "Ad"} value={buyerInfo.firstName} onChange={e => setBuyerInfo({...buyerInfo, firstName: e.target.value})} />
                       <Input className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "lastName") || "Soyad"} value={buyerInfo.lastName} onChange={e => setBuyerInfo({...buyerInfo, lastName: e.target.value})} />
                     </div>
-                    {/* ИСПРАВЛЕНИЕ: Поле телефона */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Input type="email" className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "emailAddress") || "E-poçt"} value={buyerInfo.email} onChange={e => setBuyerInfo({...buyerInfo, email: e.target.value})} />
                       <Input type="tel" className="h-12 bg-secondary/10 rounded-xl font-bold border-none shadow-inner" placeholder={t(locale, "phoneNumber") || "Telefon"} value={buyerInfo.phone} onChange={e => setBuyerInfo({...buyerInfo, phone: e.target.value})} />
                     </div>
                   </div>
 
-                  {event.buyerQuestions && event.buyerQuestions.length > 0 && (
-                    <>
-                      <Separator className="bg-border/60" />
-                      <div className="flex flex-col gap-4">
-                        <Label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t(locale, "additionalDetails") || "Additional Details"}</Label>
-                        {event.buyerQuestions.map((q: any) => (
-                          <div key={q.id} className="flex flex-col gap-2">
-                            <Label className="text-sm font-semibold ml-1 text-foreground">
-                              {q.label} {q.required && <span className="text-destructive">*</span>}
-                            </Label>
-                            <Input 
-                              className="h-12 bg-secondary/10 rounded-xl font-medium border-none shadow-inner" 
-                              required={q.required}
-                              value={customAnswers[q.id] || ""} 
-                              onChange={e => setCustomAnswers({...customAnswers, [q.id]: e.target.value})} 
-                            />
-                          </div>
-                        ))}
+                  {/* --- БЛОК ПРОМОКОДА --- */}
+                  <div className="p-5 rounded-[2rem] border bg-primary/5 flex flex-col gap-3">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                      <Tag className="w-3 h-3" /> Promo-kodunuz var?
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Kodu daxil edin" 
+                        value={promoInput}
+                        onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoError(""); }}
+                        className="h-12 bg-background border-none rounded-xl font-bold uppercase"
+                        disabled={!!appliedPromo || isValidatingPromo}
+                      />
+                      {appliedPromo ? (
+                        <Button variant="secondary" className="h-12 rounded-xl text-destructive" onClick={() => { setAppliedPromo(null); setPromoInput(""); }}>
+                          <X className="w-5 h-5" />
+                        </Button>
+                      ) : (
+                        <Button className="h-12 px-6 rounded-xl font-bold" onClick={handleApplyPromo} disabled={isValidatingPromo || !promoInput.trim()}>
+                          {isValidatingPromo ? <Loader2 className="animate-spin w-4 h-4" /> : "Tətbiq et"}
+                        </Button>
+                      )}
+                    </div>
+                    {promoError && <p className="text-[10px] text-destructive font-bold uppercase ml-1">{promoError}</p>}
+                    {appliedPromo && (
+                      <div className="flex items-center justify-between text-green-600 bg-green-500/10 p-3 rounded-xl border border-green-500/20">
+                        <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Check className="w-3 h-3" /> Endirim tətbiq olundu!</span>
+                        <span className="text-sm font-black">-{appliedPromo.value}{appliedPromo.type === "PERCENTAGE" ? "%" : " ₼"}</span>
                       </div>
-                    </>
+                    )}
+                  </div>
+
+                  {event.buyerQuestions && event.buyerQuestions.length > 0 && (
+                    <div className="flex flex-col gap-4">
+                      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t(locale, "additionalDetails") || "Additional Details"}</Label>
+                      {event.buyerQuestions.map((q: any) => (
+                        <div key={q.id} className="flex flex-col gap-2">
+                          <Label className="text-sm font-semibold ml-1">{q.label} {q.required && <span className="text-destructive">*</span>}</Label>
+                          <Input className="h-12 bg-secondary/10 rounded-xl font-medium border-none" required={q.required} value={customAnswers[q.id] || ""} onChange={e => setCustomAnswers({...customAnswers, [q.id]: e.target.value})} />
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center p-6">
+                <div className="flex flex-col items-center justify-center py-10 text-center">
                   <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
                   <h3 className="text-2xl font-black mb-2 uppercase tracking-tight">{t(locale, "paymentSuccessful") || "ÖDƏNİŞ UĞURLUDUR!"}</h3>
-                  <p className="text-muted-foreground text-sm max-w-xs">{t(locale, "ticketsDownloaded") || "Biletləriniz PDF formatında cihazınıza yükləndi!"}</p>
+                  <p className="text-muted-foreground text-sm max-w-xs">{t(locale, "ticketsDownloaded") || "Biletləriniz PDF formatında yükləndi!"}</p>
                   <Button size="lg" className="mt-8 px-10 rounded-xl font-bold" onClick={closeCheckout}>{t(locale, "done")}</Button>
                 </div>
               )}
@@ -573,7 +674,8 @@ const handleCheckout = async () => {
                 <div className="flex flex-col items-center sm:items-start">
                   <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{t(locale, "total")}</span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black text-primary tracking-tighter">{totalPrice}</span>
+                    {appliedPromo && <span className="text-sm line-through text-muted-foreground mr-2 opacity-50 font-bold">{baseTotalPrice} ₼</span>}
+                    <span className="text-4xl font-black text-primary tracking-tighter">{finalTotalPrice}</span>
                     <span className="text-lg font-black text-primary">₼</span>
                   </div>
                   <span className="text-[10px] font-black text-muted-foreground uppercase mt-1">{totalCount} {t(locale, "ticketsSelected")}</span>
@@ -586,14 +688,7 @@ const handleCheckout = async () => {
                     onClick={() => checkoutStep === 1 ? setCheckoutStep(2) : handleCheckout()} 
                     disabled={checkoutStep === 1 ? totalCount === 0 : (!isFormValid || isProcessing)}
                   >
-                    {isProcessing ? (
-                      <Loader2 className="animate-spin w-5 h-5" />
-                    ) : checkoutStep === 1 ? (
-                      t(locale, "continueBtn") || "Davam et"
-                    ) : (
-                      /* ИСПРАВЛЕНИЕ: Если бесплатно, пишем "Зарегистрироваться" */
-                      totalPrice === 0 ? (t(locale, "register") || "Qeydiyyatdan keç") : (t(locale, "payNow") || "İndi Ödə")
-                    )}
+                    {isProcessing ? <Loader2 className="animate-spin w-5 h-5" /> : checkoutStep === 1 ? (t(locale, "continueBtn") || "Davam et") : (finalTotalPrice === 0 ? "Qeydiyyat" : "İndi Ödə")}
                   </Button>
                 </div>
               </div>
@@ -608,7 +703,6 @@ const handleCheckout = async () => {
           <span className="text-sm font-bold">{toast.message}</span>
         </div>
       )}
-
     </div>
   )
 }

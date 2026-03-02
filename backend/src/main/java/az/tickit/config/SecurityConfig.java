@@ -37,10 +37,18 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/events/s/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/orders/create").permitAll() // <--- РАЗРЕШАЕМ ПОКУПКУ БЕЗ ТОКЕНА
+
+                        // СНАЧАЛА ОТКРЫВАЕМ ПУБЛИЧНЫЙ ЭНДПОИНТ
+                        .requestMatchers("/api/v1/promocodes/validate").permitAll()
+
+                        // ПОТОМ ЗАКРЫВАЕМ ОСТАЛЬНЫЕ ДЛЯ АДМИНОВ
+                        .requestMatchers("/api/v1/promocodes/**").authenticated()
+
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders/create").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -51,13 +59,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Указываем точный адрес фронтенда
-        configuration.setAllowedOrigins(Arrays.asList("http://72.60.135.9:3000"));
-        // Разрешаем все методы
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        // ВАЖНО: Явно разрешаем заголовок Authorization
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
-        // Разрешаем передачу куки/токенов
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

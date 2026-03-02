@@ -1,6 +1,7 @@
 package az.tickit.event;
 
 import az.tickit.event.dto.CreateEventRequest;
+import az.tickit.order.Order;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -8,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List; // <-- не забудь импорт
 import java.util.Map;
 
@@ -89,5 +91,10 @@ public class EventController {
             Authentication authentication) {
         String organizerEmail = authentication.getName();
         return ResponseEntity.ok(eventService.getEventStatistics(id, organizerEmail));
+    }
+
+    @GetMapping("/{eventId}/all-orders")
+    public ResponseEntity<List<Order>> getAllOrders(@PathVariable String eventId, Principal principal) {
+        return ResponseEntity.ok(eventService.getAllEventOrders(eventId, principal.getName()));
     }
 }

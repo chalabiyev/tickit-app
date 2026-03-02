@@ -236,10 +236,10 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
     const file = e.target.files?.[0]; if (!file) return; setIsUploading(true); const formData = new FormData(); formData.append("file", file)
     try { 
       const token = localStorage.getItem("tickit_token") || ""; 
-      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData }); 
+      const response = await fetch("http://localhost:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData }); 
       if (!response.ok) throw new Error("Upload failed"); 
       const data = await response.json(); 
-      onChange({ ...currentDesign, bgImage: `http://72.60.135.9:8080${data.url}`, bgOverlay: 0.2, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0 }) 
+      onChange({ ...currentDesign, bgImage: `http://localhost:8080${data.url}`, bgOverlay: 0.2, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0 }) 
     } catch (error) { console.error(error); alert("Failed to upload background") } finally { setIsUploading(false) }
   }
 
@@ -247,10 +247,10 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
     const file = e.target.files?.[0]; if (!file) return; setIsUploading(true); const formData = new FormData(); formData.append("file", file)
     try { 
       const token = localStorage.getItem("tickit_token") || ""; 
-      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData }); 
+      const response = await fetch("http://localhost:8080/api/v1/upload/image", { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData }); 
       if (!response.ok) throw new Error("Upload failed"); 
       const data = await response.json(); 
-      addElement('Logo', 'image', { src: `http://72.60.135.9:8080${data.url}`, width: 100, height: 100 });
+      addElement('Logo', 'image', { src: `http://localhost:8080${data.url}`, width: 100, height: 100 });
     } catch (error) { console.error(error); alert("Failed to upload logo") } finally { setIsUploading(false) }
   }
 

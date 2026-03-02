@@ -77,4 +77,6 @@ public class Event {
 
     private String streamUrl;
     private String streamPassword;
+
+    private Integer views;
 }

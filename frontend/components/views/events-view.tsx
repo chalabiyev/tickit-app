@@ -48,10 +48,8 @@ function EventCard({
   }
 
   return (
-    // ИСПРАВЛЕНИЕ: Добавили relative и pt-40 (160px отступ сверху под картинку)
     <Card className="relative overflow-hidden border-border/50 transition-all hover:shadow-lg hover:-translate-y-1 hover:border-primary/30 group flex flex-col h-full bg-card/50 backdrop-blur-sm pt-40">
       
-      {/* ИСПРАВЛЕНИЕ ЩЕЛИ: Жесткое абсолютное позиционирование прибивает картинку к краям */}
       <div className="absolute top-0 left-0 right-0 h-40 bg-secondary/20 overflow-hidden m-0 p-0 border-none">
         <img
           src={event.image || defaultImage}
@@ -160,7 +158,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
         const token = localStorage.getItem("tickit_token")
         if (!token) throw new Error("No token found")
 
-        const response = await fetch("http://72.60.135.9:8080/api/v1/events/me", {
+        const response = await fetch("http://localhost:8080/api/v1/events/me", {
           headers: { "Authorization": `Bearer ${token}` }
         })
 
@@ -180,10 +178,10 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
             name: ev.title,
             date: ev.eventDate,
             location: ev.isPhysical ? (ev.venueName || ev.address || "Physical Event") : "Online Event",
-            sold: 0, 
+            sold: ev.sold || 0, // ИСПРАВЛЕНИЕ: Теперь показываем реальные продажи
             total: ev.totalCapacity || 0,
             status: status,
-            image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://72.60.135.9:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
+            image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://localhost:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
             shortLink: ev.shortLink 
           }
         })
@@ -227,9 +225,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
     <div className="flex flex-col gap-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
-          <h2 className="text-2xl font-black tracking-tight text-foreground">
-            {t(locale, "myEvents") || "Tədbirlərim"}
-          </h2>
+          {/* ИСПРАВЛЕНИЕ: Убрали дублирующийся заголовок <h2> */}
           <p className="text-sm text-muted-foreground font-medium">Bütün tədbirlərinizi buradan idarə edin</p>
         </div>
         <Button size="lg" className="gap-2 shadow-lg font-bold rounded-xl hover:scale-105 transition-transform" onClick={onCreateEvent}>

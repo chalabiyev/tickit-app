@@ -27,4 +27,6 @@ public class UpdateEventRequest {
     private Integer maxTicketsPerOrder;
 
     private String coverImageUrl;
+
+    private String status;
 }

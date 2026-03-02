@@ -13,4 +13,6 @@ public interface EventRepository extends MongoRepository<Event, String> {
     // БЫЛО: List<Event> findByOrganizerId(String organizerId);
     // СТАЛО: Ищем только те, которые НЕ удалены
     List<Event> findByOrganizerIdAndDeletedFalse(String organizerId);
+
+    List<Event> findByOrganizerId(String organizerId);
 }

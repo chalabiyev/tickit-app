@@ -80,6 +80,7 @@ function DashboardContent({ user, onLogout }: DashboardContentProps) {
           <EventStatisticsView
             event={view.event}
             onBack={() => setView({ type: "page", page: "myEvents" })}
+            onNavigateToOrders={() => setView({ type: "page", page: "orders" })} 
           />
         )
       case "editEvent":
