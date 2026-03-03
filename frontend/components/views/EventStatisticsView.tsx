@@ -43,7 +43,7 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem("tickit_token")
-        const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}/statistics`, {
+        const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}/statistics`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
         if (!response.ok) throw new Error("Failed to load stats")
@@ -90,7 +90,7 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
             <p className="text-sm text-muted-foreground">{event.name}</p>
           </div>
         </div>
-        <Button variant="outline" className="gap-2 font-bold" onClick={() => window.open(`http://localhost:8080/api/v1/events/${event.id}/report/pdf`)}>
+        <Button variant="outline" className="gap-2 font-bold" onClick={() => window.open(`http://72.60.135.9:8080/api/v1/events/${event.id}/report/pdf`)}>
           <Download className="h-4 w-4" /> PDF Yüklə
         </Button>
       </div>

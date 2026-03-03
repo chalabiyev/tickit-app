@@ -1,8 +1,10 @@
 package az.tickit.order;
 
+import az.tickit.order.dto.AdminOrderRequest;
 import az.tickit.order.dto.CreateOrderRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -26,5 +28,11 @@ public class OrderController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("success", false, "message", e.getMessage()));
         }
+    }
+    // Добавь этот метод в OrderController
+    @PostMapping("/admin-book")
+    public ResponseEntity<Order> adminBook(@RequestBody AdminOrderRequest request, Authentication auth) {
+        // Передаем email организатора из токена для проверки прав
+        return ResponseEntity.ok(orderService.createAdminOrder(request, auth.getName()));
     }
 }

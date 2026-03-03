@@ -2,6 +2,7 @@ package az.tickit.order;
 
 import az.tickit.event.Event;
 import az.tickit.event.EventRepository;
+import az.tickit.order.dto.AdminOrderRequest;
 import az.tickit.order.dto.CreateOrderRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -121,5 +122,58 @@ public class OrderService {
         orderRepository.save(order);
 
         return "Uğurlu! Girişə icazə verildi. (Yer: " + matchedTicket.getSeatId() + ")";
+    }
+
+    // Внутри OrderService.java
+
+    public Order createAdminOrder(AdminOrderRequest request, String organizerEmail) {
+        // 1. Ищем ивент и проверяем права
+        Event event = eventRepository.findById(request.getEventId())
+                .orElseThrow(() -> new RuntimeException("Event not found"));
+
+        if (!event.getOrganizerId().equals(organizerEmail)) {
+            throw new RuntimeException("У вас нет прав для бронирования билетов на этот ивент");
+        }
+
+        // 2. Проверяем доступность мест (для физических мест)
+        if (event.getIsReservedSeating() != null && event.getIsReservedSeating()) {
+            for (String seatId : request.getSeatIds()) {
+                if (event.getSoldSeats().contains(seatId)) {
+                    throw new RuntimeException("Место " + seatId + " уже занято");
+                }
+            }
+            // Добавляем места в список проданных
+            event.getSoldSeats().addAll(request.getSeatIds());
+        }
+
+        // Обновляем общее количество проданных билетов
+        event.setSold(event.getSold() + request.getSeatIds().size());
+        eventRepository.save(event);
+
+        // 3. Создаем объект заказа
+        Order order = new Order();
+        order.setEventId(event.getId());
+        order.setCustomerName(request.getCustomerName());
+        order.setCustomerEmail(request.getCustomerEmail());
+        order.setCustomerPhone(request.getCustomerPhone());
+        order.setSeatIds(request.getSeatIds());
+        order.setTotalAmount(0.0); // Всегда 0 для админ-брони
+        order.setOriginalAmount(0.0);
+        order.setStatus("SUCCESS"); // Сразу успех
+        order.setCreatedAt(LocalDateTime.now());
+
+        // 4. Генерируем билеты (используем твою логику с QR)
+        List<OrderTicket> tickets = request.getSeatIds().stream().map(seatId -> {
+            OrderTicket ticket = new OrderTicket();
+            ticket.setTicketNumber("ADM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            ticket.setSeatId(seatId);
+            ticket.setQrCode(event.getShortLink() + "-" + seatId + "-" + UUID.randomUUID().toString().substring(0, 4));
+            ticket.setUsed(false);
+            return ticket;
+        }).collect(Collectors.toList());
+
+        order.setTickets(tickets);
+
+        return orderRepository.save(order);
     }
 }

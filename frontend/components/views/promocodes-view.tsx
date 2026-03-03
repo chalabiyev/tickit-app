@@ -41,8 +41,8 @@ export function PromocodesView() {
     
     try {
       const [promoRes, eventRes] = await Promise.all([
-        fetch("http://localhost:8080/api/v1/promocodes/me", { headers }),
-        fetch("http://localhost:8080/api/v1/events/me", { headers })
+        fetch("http://72.60.135.9:8080/api/v1/promocodes/me", { headers }),
+        fetch("http://72.60.135.9:8080/api/v1/events/me", { headers })
       ]);
 
       if (promoRes.ok) setPromocodes(await promoRes.json())
@@ -95,7 +95,7 @@ export function PromocodesView() {
     setIsSubmitting(true)
     try {
       const token = localStorage.getItem("tickit_token")
-      const response = await fetch("http://localhost:8080/api/v1/promocodes", {
+      const response = await fetch("http://72.60.135.9:8080/api/v1/promocodes", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -126,7 +126,7 @@ export function PromocodesView() {
     setIsDeleting(true)
     try {
       const token = localStorage.getItem("tickit_token")
-      const res = await fetch(`http://localhost:8080/api/v1/promocodes/${promoToDelete}`, {
+      const res = await fetch(`http://72.60.135.9:8080/api/v1/promocodes/${promoToDelete}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       })

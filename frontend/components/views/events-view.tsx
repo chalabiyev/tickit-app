@@ -8,8 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { CalendarDays, MapPin, Pencil, BarChart3, Plus, Loader2, Link2, Check, AlertCircle } from "lucide-react"
+// ДОБАВЛЕН ИМПОРТ UserPlus
+import { CalendarDays, MapPin, Pencil, BarChart3, Plus, Loader2, Link2, Check, AlertCircle, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
+// ИМПОРТ ТВОЕЙ МОДАЛКИ (проверь путь, если файл в другой папке)
+import { AdminBookingModal } from "./AdminBookingModal"
 
 export interface EventData {
   id: string 
@@ -21,16 +24,20 @@ export interface EventData {
   status: "active" | "pending" | "past"
   image: string
   shortLink?: string 
+  // ДОБАВЛЕНО: для работы модалки бронирования
+  tiers?: any[] 
 }
 
 function EventCard({
   event,
   onEdit,
   onManage,
+  onAdminBook, // ДОБАВЛЕН ПРОП
 }: {
   event: EventData
   onEdit: (event: EventData) => void
   onManage: (event: EventData) => void
+  onAdminBook: (event: EventData) => void // ДОБАВЛЕН ТИП
 }) {
   const { locale } = useLocale()
   const [isCopied, setIsCopied] = useState(false)
@@ -117,6 +124,17 @@ function EventCard({
             {t(locale, "statistics") || "Statistika"}
           </Button>
 
+          {/* ИСПРАВЛЕННАЯ КНОПКА */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="col-span-2 gap-2 rounded-lg text-xs font-semibold h-9 hover:border-primary/50 transition-all"
+            onClick={() => onAdminBook(event)}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Bütöv bilet (Admin)
+          </Button>
+
           <Button
             variant={isCopied ? "default" : "outline"}
             size="sm"
@@ -152,48 +170,54 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
 
-  useEffect(() => {
-    const fetchMyEvents = async () => {
-      try {
-        const token = localStorage.getItem("tickit_token")
-        if (!token) throw new Error("No token found")
+  // СОСТОЯНИЯ ДЛЯ АДМИН-БРОНИ
+  const [isAdminBookingOpen, setIsAdminBookingOpen] = useState(false)
+  const [selectedEventForBooking, setSelectedEventForBooking] = useState<EventData | null>(null)
 
-        const response = await fetch("http://localhost:8080/api/v1/events/me", {
-          headers: { "Authorization": `Bearer ${token}` }
-        })
+  const fetchMyEvents = async () => {
+    try {
+      const token = localStorage.getItem("tickit_token")
+      if (!token) throw new Error("No token found")
 
-        if (!response.ok) throw new Error("Failed to fetch events")
-        const backendEvents = await response.json()
+      const response = await fetch("http://72.60.135.9:8080/api/v1/events/me", {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
 
-        const formattedEvents: EventData[] = backendEvents.map((ev: any) => {
-          const eventDate = new Date(ev.eventDate)
-          const today = new Date()
-          let status: "active" | "pending" | "past" = "active"
-          
-          if (ev.status === "PENDING") status = "pending"
-          else if (eventDate < today) status = "past"
+      if (!response.ok) throw new Error("Failed to fetch events")
+      const backendEvents = await response.json()
 
-          return {
-            id: ev.id,
-            name: ev.title,
-            date: ev.eventDate,
-            location: ev.isPhysical ? (ev.venueName || ev.address || "Physical Event") : "Online Event",
-            sold: ev.sold || 0, // ИСПРАВЛЕНИЕ: Теперь показываем реальные продажи
-            total: ev.totalCapacity || 0,
-            status: status,
-            image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://localhost:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
-            shortLink: ev.shortLink 
-          }
-        })
+      const formattedEvents: EventData[] = backendEvents.map((ev: any) => {
+        const eventDate = new Date(ev.eventDate)
+        const today = new Date()
+        let status: "active" | "pending" | "past" = "active"
+        
+        if (ev.status === "PENDING") status = "pending"
+        else if (eventDate < today) status = "past"
 
-        setEvents(formattedEvents)
-      } catch (err: any) {
-        setError(err.message)
-      } finally {
-        setIsLoading(false)
-      }
+        return {
+          id: ev.id,
+          name: ev.title,
+          date: ev.eventDate,
+          location: ev.isPhysical ? (ev.venueName || ev.address || "Physical Event") : "Online Event",
+          sold: ev.sold || 0,
+          total: ev.totalCapacity || 0,
+          status: status,
+          image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://72.60.135.9:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
+          shortLink: ev.shortLink,
+          // ВАЖНО: передаем категории для модалки
+          tiers: ev.tiers 
+        }
+      })
+
+      setEvents(formattedEvents)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchMyEvents()
   }, [])
 
@@ -206,17 +230,6 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
     )
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-destructive gap-3 bg-destructive/10 rounded-2xl border border-destructive/20 max-w-md mx-auto mt-10">
-        <AlertCircle className="w-10 h-10" />
-        <p className="font-bold">Xəta baş verdi</p>
-        <p className="text-sm opacity-80">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()} className="mt-2 bg-background">Yenidən yoxla</Button>
-      </div>
-    )
-  }
-
   const activeEvents = events.filter((e) => e.status === "active")
   const pendingEvents = events.filter((e) => e.status === "pending")
   const pastEvents = events.filter((e) => e.status === "past")
@@ -225,8 +238,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
     <div className="flex flex-col gap-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
-          {/* ИСПРАВЛЕНИЕ: Убрали дублирующийся заголовок <h2> */}
-          <p className="text-sm text-muted-foreground font-medium">Bütün tədbirlərinizi buradan idarə edin</p>
+          <p className="text-sm text-muted-foreground font-medium">Bütün tədbirlərini buradan idarə edin</p>
         </div>
         <Button size="lg" className="gap-2 shadow-lg font-bold rounded-xl hover:scale-105 transition-transform" onClick={onCreateEvent}>
           <Plus className="h-5 w-5" />
@@ -241,7 +253,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
              <CalendarDays className="h-10 w-10 text-muted-foreground opacity-60" />
            </div>
            <h3 className="text-2xl font-black text-foreground mb-3">Hələ tədbir yoxdur</h3>
-           <p className="text-muted-foreground text-sm max-w-sm mb-8 font-medium leading-relaxed">Siz hələ heç bir tədbir yaratmamısınız. İlk tədbirinizi yaradaraq bilet satışına başlayın!</p>
+           <p className="text-muted-foreground text-sm max-w-sm mb-8 font-medium leading-relaxed">Siz hələ heç bir tədbir yaratmamısınız.</p>
            <Button onClick={onCreateEvent} size="lg" className="font-bold shadow-xl rounded-xl h-12 px-8">İlk Tədbirini Yarat</Button>
         </Card>
       ) : (
@@ -259,41 +271,52 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
           </TabsList>
 
           <TabsContent value="active" className="focus-visible:outline-none">
-            {activeEvents.length > 0 ? (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {activeEvents.map((event) => (
-                  <EventCard key={event.id} event={event} onEdit={onEditEvent} onManage={onManageEvent} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 text-muted-foreground text-sm border rounded-2xl bg-card/50 font-medium">Aktiv tədbir tapılmadı.</div>
-            )}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {activeEvents.map((event) => (
+                <EventCard 
+                  key={event.id} 
+                  event={event} 
+                  onEdit={onEditEvent} 
+                  onManage={onManageEvent} 
+                  onAdminBook={(ev) => {
+                    setSelectedEventForBooking(ev);
+                    setIsAdminBookingOpen(true);
+                  }}
+                />
+              ))}
+            </div>
           </TabsContent>
 
+          {/* Другие TabsContent остаются такими же, но им тоже нужен onAdminBook */}
           <TabsContent value="pending" className="focus-visible:outline-none">
-            {pendingEvents.length > 0 ? (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {pendingEvents.map((event) => (
-                  <EventCard key={event.id} event={event} onEdit={onEditEvent} onManage={onManageEvent} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 text-muted-foreground text-sm border rounded-2xl bg-card/50 font-medium">Ödəniş gözləyən tədbir tapılmadı.</div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="past" className="focus-visible:outline-none">
-             {pastEvents.length > 0 ? (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {pastEvents.map((event) => (
-                  <EventCard key={event.id} event={event} onEdit={onEditEvent} onManage={onManageEvent} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 text-muted-foreground text-sm border rounded-2xl bg-card/50 font-medium">Keçmiş tədbir tapılmadı.</div>
-            )}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {pendingEvents.map((event) => (
+                <EventCard 
+                  key={event.id} 
+                  event={event} 
+                  onEdit={onEditEvent} 
+                  onManage={onManageEvent} 
+                  onAdminBook={(ev) => {
+                    setSelectedEventForBooking(ev);
+                    setIsAdminBookingOpen(true);
+                  }}
+                />
+              ))}
+            </div>
           </TabsContent>
         </Tabs>
+      )}
+
+      {/* МОДАЛКА АДМИН-БРОНИ */}
+      {isAdminBookingOpen && selectedEventForBooking && (
+        <AdminBookingModal 
+          event={selectedEventForBooking} 
+          onClose={() => setIsAdminBookingOpen(false)} 
+          onSuccess={() => {
+            setIsAdminBookingOpen(false);
+            fetchMyEvents(); // Обновляем список после брони
+          }} 
+        />
       )}
     </div>
   )

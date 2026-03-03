@@ -48,6 +48,8 @@ public class SecurityConfig {
                         // ПОТОМ ЗАКРЫВАЕМ ОСТАЛЬНЫЕ ДЛЯ АДМИНОВ
                         .requestMatchers("/api/v1/promocodes/**").authenticated()
 
+                        .requestMatchers("/api/v1/orders/admin-book").authenticated()
+
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders/create").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -59,7 +61,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
+        configuration.setAllowedOrigins(Arrays.asList("http://72.60.135.9:3000"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
         configuration.setAllowCredentials(true);

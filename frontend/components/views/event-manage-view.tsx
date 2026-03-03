@@ -136,7 +136,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
     const fetchFullEvent = async () => {
       try {
         const token = localStorage.getItem("tickit_token")
-        const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
+        const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
 
@@ -154,7 +154,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
         setAddress(data.address || "")
         if (data.coverImageUrl) {
           const imgPath = data.coverImageUrl;
-          setCoverImageUrl(imgPath.startsWith("http") ? imgPath : `http://localhost:8080${imgPath.startsWith("/") ? "" : "/"}${imgPath}`);
+          setCoverImageUrl(imgPath.startsWith("http") ? imgPath : `http://72.60.135.9:8080${imgPath.startsWith("/") ? "" : "/"}${imgPath}`);
         } else {
           setCoverImageUrl(null);
         }
@@ -201,14 +201,14 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
       formData.append("file", croppedFile)
 
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch("http://localhost:8080/api/v1/upload/image", { 
+      const response = await fetch("http://72.60.135.9:8080/api/v1/upload/image", { 
         method: "POST", 
         headers: { "Authorization": `Bearer ${token}` }, 
         body: formData 
       })
       if (!response.ok) throw new Error("Upload failed")
       const data = await response.json()
-      setCoverImageUrl(`http://localhost:8080${data.url}`)
+      setCoverImageUrl(`http://72.60.135.9:8080${data.url}`)
     } catch (error) { 
       showToast(t(locale, "imageUploadFailed") || "Şəkil yüklənə bilmədi", "error") 
     } finally { 
@@ -236,11 +236,11 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
         isPrivate, 
         ageRestriction, 
         maxTicketsPerOrder, 
-        coverImageUrl: coverImageUrl?.replace("http://localhost:8080", ""),
+        coverImageUrl: coverImageUrl?.replace("http://72.60.135.9:8080", ""),
         status: salesActive ? "ACTIVE" : "PAUSED"
       }
 
-      const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
+      const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -267,7 +267,7 @@ export function EventManageView({ event, onBack }: EventManageViewProps) {
     setIsDeleting(true)
     try {
       const token = localStorage.getItem("tickit_token") || ""
-      const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}`, {
+      const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       })
