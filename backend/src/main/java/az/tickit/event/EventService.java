@@ -8,9 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -73,12 +71,16 @@ public class EventService {
                 .platformFee(platformFee)
                 .shortLink(shortLink)
                 .status("PUBLISHED")
-                .deleted(false) // <--- ОБЯЗАТЕЛЬНО ДОБАВЬ ЭТО СЮДА!
+                .deleted(false)
                 .views(0)
                 .build();
 
         event.setStreamUrl(request.getStreamUrl());
         event.setStreamPassword(request.getStreamPassword());
+
+        // Гарантируем, что списки инициализированы
+        event.setSoldSeats(new ArrayList<>());
+        event.setAdminSeats(new ArrayList<>());
 
         return eventRepository.save(event);
     }
@@ -143,7 +145,6 @@ public class EventService {
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
         List<az.tickit.event.dto.EventStatsResponse.OrderSummary> recentOrders = orders.stream()
-                .limit(5)
                 .map(o -> {
                     az.tickit.event.dto.EventStatsResponse.OrderSummary summary = new az.tickit.event.dto.EventStatsResponse.OrderSummary();
                     summary.setId(o.getId().substring(Math.max(0, o.getId().length() - 6)).toUpperCase());
@@ -151,12 +152,9 @@ public class EventService {
                     summary.setEmail(o.getCustomerEmail());
                     summary.setCustomerPhone(o.getCustomerPhone() != null ? o.getCustomerPhone() : "-");
                     summary.setType(String.valueOf(o.getSeatIds() != null ? o.getSeatIds().size() : 1));
-
-                    // ДОБАВЛЕННЫЕ ПОЛЯ ДЛЯ СКИДОК
-                    summary.setAmount(o.getTotalAmount()); // Финальная цена
-                    summary.setOriginalAmount(o.getOriginalAmount()); // Изначальная цена (из Order)
-                    summary.setPromoCode(o.getPromoCode()); // Примененный код (из Order)
-
+                    summary.setAmount(o.getTotalAmount());
+                    summary.setOriginalAmount(o.getOriginalAmount());
+                    summary.setPromoCode(o.getPromoCode());
                     summary.setDate(o.getCreatedAt() != null ? o.getCreatedAt().format(formatter) : "Bu gün");
                     summary.setStatus("success");
                     return summary;
@@ -175,6 +173,9 @@ public class EventService {
         response.setRecentOrders(recentOrders);
         response.setSalesHistory(history);
 
+        // ВАЖНО: Отдаем список админских мест на фронт
+        response.setAdminSeats(event.getAdminSeats() != null ? event.getAdminSeats() : new ArrayList<>());
+
         return response;
     }
 
@@ -183,6 +184,67 @@ public class EventService {
         if (!event.getOrganizerId().equals(organizerEmail)) throw new RuntimeException("No permission");
         event.setDeleted(true);
         eventRepository.save(event);
+    }
+
+    public az.tickit.event.dto.GlobalStatsResponse getGlobalStatistics(String organizerEmail) {
+        // 1. Берем все неудаленные ивенты организатора
+        List<Event> myEvents = eventRepository.findByOrganizerId(organizerEmail).stream()
+                .filter(e -> !e.isDeleted())
+                .collect(Collectors.toList());
+
+        double totalRevenue = 0;
+        int totalSold = 0;
+        int totalViews = 0;
+        int activeEventsCount = 0;
+
+        // Сегодняшняя дата для сравнения
+        java.time.LocalDate today = java.time.LocalDate.now();
+
+        Map<String, Double> combinedHistory = new HashMap<>();
+        java.time.format.DateTimeFormatter chartDateFormatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM");
+
+        for (Event event : myEvents) {
+            totalSold += (event.getSold() != null) ? event.getSold() : 0;
+            totalViews += (event.getViews() != null) ? event.getViews() : 0;
+
+            // ИСПРАВЛЕНИЕ ОШИБКИ И ЛОГИКИ:
+            // Используем compareTo вместо isAfter/isEqual, чтобы IDE не ругалась.
+            // val >= 0 означает, что дата сегодня или в будущем.
+            boolean isFutureOrToday = event.getEventDate() != null && event.getEventDate().compareTo(today) >= 0;
+
+            if ("PUBLISHED".equalsIgnoreCase(event.getStatus()) && isFutureOrToday) {
+                activeEventsCount++;
+            }
+
+            // Считаем деньги по всем ивентам (включая прошедшие)
+            List<Order> orders = orderRepository.findByEventIdOrderByCreatedAtDesc(event.getId());
+            totalRevenue += orders.stream()
+                    .filter(o -> "SUCCESS".equals(o.getStatus()) || "Ödənilib".equals(o.getStatus()))
+                    .mapToDouble(Order::getTotalAmount)
+                    .sum();
+
+            // Данные для графика
+            orders.stream()
+                    .filter(o -> ("SUCCESS".equals(o.getStatus()) || "Ödənilib".equals(o.getStatus())) && o.getCreatedAt() != null)
+                    .forEach(o -> {
+                        String dateKey = o.getCreatedAt().format(chartDateFormatter);
+                        combinedHistory.put(dateKey, combinedHistory.getOrDefault(dateKey, 0.0) + (o.getSeatIds() != null ? o.getSeatIds().size() : 1.0));
+                    });
+        }
+
+        // Сборка истории для графика
+        List<az.tickit.event.dto.SalesHistoryData> history = combinedHistory.entrySet().stream()
+                .map(entry -> new az.tickit.event.dto.SalesHistoryData(entry.getKey(), entry.getValue()))
+                .sorted(java.util.Comparator.comparing(az.tickit.event.dto.SalesHistoryData::getDate))
+                .collect(Collectors.toList());
+
+        return az.tickit.event.dto.GlobalStatsResponse.builder()
+                .totalRevenue(totalRevenue)
+                .totalSold(totalSold)
+                .totalViews(totalViews)
+                .activeEvents(activeEventsCount) // Теперь тут будет честная "4"
+                .salesHistory(history)
+                .build();
     }
 
     public Event getEventByShortLink(String shortLink) {
@@ -211,11 +273,7 @@ public class EventService {
     }
 
     public List<Event> getEventsByOrganizer(String organizerEmail) {
-        // 1. Берем все ивенты организатора из репозитория
         List<Event> allEvents = eventRepository.findByOrganizerId(organizerEmail);
-
-        // 2. Фильтруем: оставляем только те, где deleted == false.
-        // Так как это примитив boolean, по умолчанию там всегда false, если не удалено.
         return allEvents.stream()
                 .filter(e -> !e.isDeleted())
                 .collect(Collectors.toList());

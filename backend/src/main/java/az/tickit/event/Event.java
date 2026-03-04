@@ -79,4 +79,6 @@ public class Event {
     private String streamPassword;
 
     private Integer views;
+
+    private List<String> adminSeats = new ArrayList<>();
 }

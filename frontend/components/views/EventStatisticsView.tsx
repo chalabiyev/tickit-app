@@ -24,7 +24,9 @@ import {
   Download,
   Loader2,
   Info,
-  Tag
+  Tag,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -38,12 +40,16 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
   const { locale } = useLocale()
   const [stats, setStats] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isDownloading, setIsDownloading] = useState(false)
+  
+  // Состояние для раскрытия списка заказов
+  const [isOrdersExpanded, setIsOrdersExpanded] = useState(false)
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem("tickit_token")
-        const response = await fetch(`http://72.60.135.9:8080/api/v1/events/${event.id}/statistics`, {
+        const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}/statistics`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
         if (!response.ok) throw new Error("Failed to load stats")
@@ -58,6 +64,41 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
     }
     fetchStats()
   }, [event.id])
+
+  // ИСПРАВЛЕННАЯ ФУНКЦИЯ СКАЧИВАНИЯ PDF С ТОКЕНОМ
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true);
+    try {
+      const token = localStorage.getItem("tickit_token");
+      const response = await fetch(`http://localhost:8080/api/v1/events/${event.id}/report/pdf`, {
+        method: 'GET',
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error("Yükləmək mümkün olmadı");
+
+      // Конвертируем ответ в Blob (файл)
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Создаем невидимую ссылку и кликаем по ней
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Hesabat_${event.name.replace(/\s+/g, '_')}.pdf`; // Красивое имя файла
+      document.body.appendChild(a);
+      a.click();
+      
+      // Подчищаем за собой
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert("PDF yüklənərkən xəta baş verdi.");
+    } finally {
+      setIsDownloading(false);
+    }
+  }
 
   if (isLoading) return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
   if (!stats) return null;
@@ -79,6 +120,10 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
   const maxVal = Math.max(...chartData.map(d => d.val), 1);
   const fillPercentage = stats.total > 0 ? Math.round((stats.sold / stats.total) * 100) : 0;
 
+  // ЛОГИКА ОТОБРАЖЕНИЯ ЗАКАЗОВ (Разворачиваем/Сворачиваем)
+  const orders = stats.recentOrders || [];
+  const displayedOrders = isOrdersExpanded ? orders : orders.slice(0, 5);
+
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300 pb-10">
       
@@ -90,8 +135,16 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
             <p className="text-sm text-muted-foreground">{event.name}</p>
           </div>
         </div>
-        <Button variant="outline" className="gap-2 font-bold" onClick={() => window.open(`http://72.60.135.9:8080/api/v1/events/${event.id}/report/pdf`)}>
-          <Download className="h-4 w-4" /> PDF Yüklə
+        
+        {/* ИЗМЕНЕНА КНОПКА СКАЧИВАНИЯ */}
+        <Button 
+          variant="outline" 
+          className="gap-2 font-bold" 
+          onClick={handleDownloadPdf}
+          disabled={isDownloading}
+        >
+          {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isDownloading ? "Yüklənir..." : "PDF Yüklə"}
         </Button>
       </div>
 
@@ -139,9 +192,22 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
       <Card className="border-border/50 bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 pb-4">
           <CardTitle className="text-lg">Son Sifarişlər</CardTitle>
-          <Button variant="link" className="text-primary font-bold" onClick={onNavigateToOrders}>
-            Hamısına bax
-          </Button>
+          
+          {/* ИЗМЕНЕНА КНОПКА РАСКРЫТИЯ СПИСКА */}
+          {orders.length > 5 && (
+            <Button 
+              variant="ghost" 
+              className="text-primary font-bold gap-1 text-xs" 
+              onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
+            >
+              {isOrdersExpanded ? (
+                <>Gizlət <ChevronUp className="w-4 h-4" /></>
+              ) : (
+                <>Hamısına bax ({orders.length}) <ChevronDown className="w-4 h-4" /></>
+              )}
+            </Button>
+          )}
+
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
@@ -156,45 +222,52 @@ export function EventStatisticsView({ event, onBack, onNavigateToOrders }: Event
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stats.recentOrders?.map((o: any) => (
-                <TableRow key={o.id} className="hover:bg-primary/5 transition-colors">
-                  <TableCell className="pl-6 font-bold">#{o.id}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-bold text-xs">{o.customer}</span>
-                      <span className="text-[10px] text-muted-foreground">{o.email}</span>
-                    </div>
-                  </TableCell>
-                  
-                  {/* КОЛОНКА ПРОМОКОДА */}
-                  <TableCell>
-                    {o.promoCode ? (
-                      <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 px-1.5 h-6 text-[9px] font-black uppercase">
-                        <Tag className="w-2.5 h-2.5" /> {o.promoCode}
-                      </Badge>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground opacity-40">—</span>
-                    )}
-                  </TableCell>
-
-                  <TableCell><Badge variant="secondary" className="text-[10px] font-bold">{o.type} ədəd</Badge></TableCell>
-                  <TableCell className="text-[10px] font-medium">{o.date}</TableCell>
-                  
-                  {/* ЦЕНА С УЧЕТОМ СКИДКИ */}
-                  <TableCell className="text-right pr-6">
-                    <div className="flex flex-col items-end">
-                      {o.originalAmount && o.originalAmount > o.amount && (
-                        <span className="text-[9px] line-through text-muted-foreground opacity-50 font-bold">
-                          {o.originalAmount} ₼
-                        </span>
-                      )}
-                      <span className="font-black text-xs text-foreground">
-                        {o.amount} ₼
-                      </span>
-                    </div>
+              {/* РЕНДЕРИМ ТОЛЬКО displayedOrders */}
+              {displayedOrders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm font-medium">
+                    Hələ heç bir sifariş yoxdur.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                displayedOrders.map((o: any) => (
+                  <TableRow key={o.id} className="hover:bg-primary/5 transition-colors">
+                    <TableCell className="pl-6 font-bold">#{o.id}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-xs">{o.customer}</span>
+                        <span className="text-[10px] text-muted-foreground">{o.email}</span>
+                      </div>
+                    </TableCell>
+                    
+                    <TableCell>
+                      {o.promoCode ? (
+                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 px-1.5 h-6 text-[9px] font-black uppercase">
+                          <Tag className="w-2.5 h-2.5" /> {o.promoCode}
+                        </Badge>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground opacity-40">—</span>
+                      )}
+                    </TableCell>
+
+                    <TableCell><Badge variant="secondary" className="text-[10px] font-bold">{o.type} ədəd</Badge></TableCell>
+                    <TableCell className="text-[10px] font-medium">{o.date}</TableCell>
+                    
+                    <TableCell className="text-right pr-6">
+                      <div className="flex flex-col items-end">
+                        {o.originalAmount && o.originalAmount > o.amount && (
+                          <span className="text-[9px] line-through text-muted-foreground opacity-50 font-bold">
+                            {o.originalAmount} ₼
+                          </span>
+                        )}
+                        <span className="font-black text-xs text-foreground">
+                          {o.amount} ₼
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -8,10 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-// ДОБАВЛЕН ИМПОРТ UserPlus
 import { CalendarDays, MapPin, Pencil, BarChart3, Plus, Loader2, Link2, Check, AlertCircle, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
-// ИМПОРТ ТВОЕЙ МОДАЛКИ (проверь путь, если файл в другой папке)
 import { AdminBookingModal } from "./AdminBookingModal"
 
 export interface EventData {
@@ -24,20 +22,30 @@ export interface EventData {
   status: "active" | "pending" | "past"
   image: string
   shortLink?: string 
-  // ДОБАВЛЕНО: для работы модалки бронирования
   tiers?: any[] 
+  // ВАЖНО: Добавлены поля для карты и PDF
+  isPhysical?: boolean
+  isReservedSeating?: boolean
+  seats?: any[]
+  soldSeats?: string[]
+  seatMapConfig?: any
+  ticketDesign?: any
+  title?: string
+  eventDate?: string
+  venueName?: string
+  address?: string
 }
 
 function EventCard({
   event,
   onEdit,
   onManage,
-  onAdminBook, // ДОБАВЛЕН ПРОП
+  onAdminBook,
 }: {
   event: EventData
   onEdit: (event: EventData) => void
   onManage: (event: EventData) => void
-  onAdminBook: (event: EventData) => void // ДОБАВЛЕН ТИП
+  onAdminBook: (event: EventData) => void
 }) {
   const { locale } = useLocale()
   const [isCopied, setIsCopied] = useState(false)
@@ -124,7 +132,6 @@ function EventCard({
             {t(locale, "statistics") || "Statistika"}
           </Button>
 
-          {/* ИСПРАВЛЕННАЯ КНОПКА */}
           <Button 
             variant="outline" 
             size="sm" 
@@ -170,7 +177,6 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
 
-  // СОСТОЯНИЯ ДЛЯ АДМИН-БРОНИ
   const [isAdminBookingOpen, setIsAdminBookingOpen] = useState(false)
   const [selectedEventForBooking, setSelectedEventForBooking] = useState<EventData | null>(null)
 
@@ -179,7 +185,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
       const token = localStorage.getItem("tickit_token")
       if (!token) throw new Error("No token found")
 
-      const response = await fetch("http://72.60.135.9:8080/api/v1/events/me", {
+      const response = await fetch("http://localhost:8080/api/v1/events/me", {
         headers: { "Authorization": `Bearer ${token}` }
       })
 
@@ -202,10 +208,22 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
           sold: ev.sold || 0,
           total: ev.totalCapacity || 0,
           status: status,
-          image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://72.60.135.9:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
+          image: ev.coverImageUrl ? (ev.coverImageUrl.startsWith('http') ? ev.coverImageUrl : `http://localhost:8080${ev.coverImageUrl.startsWith('/') ? '' : '/'}${ev.coverImageUrl}`) : "",
           shortLink: ev.shortLink,
-          // ВАЖНО: передаем категории для модалки
-          tiers: ev.tiers 
+          tiers: ev.tiers,
+          
+          // ВАЖНО: ТЕПЕРЬ МЫ ПЕРЕДАЕМ ДАННЫЕ КАРТЫ!
+          isPhysical: ev.isPhysical,
+          isReservedSeating: ev.isReservedSeating,
+          seats: ev.seats,
+          soldSeats: ev.soldSeats || [],
+          adminSeats: ev.adminSeats || [], // <--- ДОБАВЬ ВОТ ЭТО
+          seatMapConfig: ev.seatMapConfig,
+          ticketDesign: ev.ticketDesign,
+          title: ev.title,
+          eventDate: ev.eventDate,
+          venueName: ev.venueName,
+          address: ev.address
         }
       })
 
@@ -287,7 +305,6 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
             </div>
           </TabsContent>
 
-          {/* Другие TabsContent остаются такими же, но им тоже нужен onAdminBook */}
           <TabsContent value="pending" className="focus-visible:outline-none">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {pendingEvents.map((event) => (
@@ -307,14 +324,13 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
         </Tabs>
       )}
 
-      {/* МОДАЛКА АДМИН-БРОНИ */}
       {isAdminBookingOpen && selectedEventForBooking && (
         <AdminBookingModal 
           event={selectedEventForBooking} 
           onClose={() => setIsAdminBookingOpen(false)} 
           onSuccess={() => {
             setIsAdminBookingOpen(false);
-            fetchMyEvents(); // Обновляем список после брони
+            fetchMyEvents(); 
           }} 
         />
       )}

@@ -97,4 +97,11 @@ public class EventController {
     public ResponseEntity<List<Order>> getAllOrders(@PathVariable String eventId, Principal principal) {
         return ResponseEntity.ok(eventService.getAllEventOrders(eventId, principal.getName()));
     }
+
+    @GetMapping("/stats/global")
+    public ResponseEntity<az.tickit.event.dto.GlobalStatsResponse> getGlobalStats(Authentication auth) {
+        // Вызываем тот самый "неиспользуемый" метод из сервиса
+        // auth.getName() автоматически достанет email организатора из JWT токена
+        return ResponseEntity.ok(eventService.getGlobalStatistics(auth.getName()));
+    }
 }

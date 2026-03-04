@@ -13,6 +13,8 @@ public class EventStatsResponse {
     private List<OrderSummary> recentOrders;
     private List<SalesHistoryData> salesHistory; // Добавь это поле в класс
 
+    private List<String> adminSeats;
+
     @Data
     public static class OrderSummary {
         private String id;

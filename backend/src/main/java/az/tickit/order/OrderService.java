@@ -7,10 +7,12 @@ import az.tickit.order.dto.CreateOrderRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -32,12 +34,11 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bu tədbir üçün bilet satışı müvəqqəti dayandırılıb!");
         }
 
-        // 3. ГЛОБАЛЬНЫЙ ЛИМИТ БИЛЕТОВ НА EMAIL (Защита от спекулянтов)
+        // 3. ГЛОБАЛЬНЫЙ ЛИМИТ БИЛЕТОВ НА EMAIL
         int maxTickets = (event.getMaxTicketsPerOrder() != null && event.getMaxTicketsPerOrder() > 0)
-                ? event.getMaxTicketsPerOrder() : 10; // Если лимит не указан, ставим 10
+                ? event.getMaxTicketsPerOrder() : 10;
         int requestedTickets = request.getSeatIds().size();
 
-        // Ищем прошлые успешные заказы этого покупателя
         List<Order> existingOrders = orderRepository.findByCustomerEmailAndEventId(request.getCustomerEmail(), event.getId());
         int alreadyBought = 0;
 
@@ -47,13 +48,11 @@ public class OrderService {
             }
         }
 
-        // Проверяем, не превысит ли покупка лимит
         if (alreadyBought + requestedTickets > maxTickets) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Limit aşıldı! Siz bu tədbir üçün maksimum " + maxTickets +
                     " bilet ala bilərsiniz. Siz artıq " + alreadyBought + " bilet almısınız.");
         }
 
-        // 4. Инициализируем список, если он пустой (защита от NullPointerException)
         if (event.getSoldSeats() == null) {
             event.setSoldSeats(new ArrayList<>());
         }
@@ -61,7 +60,7 @@ public class OrderService {
         // 5. ПРОВЕРКА: Не проданы ли уже эти места?
         for (String seatId : request.getSeatIds()) {
             if (event.getSoldSeats().contains(seatId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Oturacaq artıq satılıb: " + seatId); // Место уже продано
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Oturacaq artıq satılıb: " + seatId);
             }
         }
 
@@ -76,22 +75,20 @@ public class OrderService {
         order.setStatus("SUCCESS");
         order.setCreatedAt(LocalDateTime.now());
 
-        // --- МАГИЯ QR-КОДОВ (Начало) ---
-        // Для каждого купленного места создаем отдельный билет со своим уникальным UUID
+        // --- МАГИЯ QR-КОДОВ
         List<OrderTicket> generatedTickets = request.getSeatIds().stream().map(seatId -> {
             OrderTicket ticket = new OrderTicket();
             ticket.setSeatId(seatId);
-            ticket.setQrCode(UUID.randomUUID().toString()); // Тот самый неподбираемый QR-код
-            ticket.setScanned(false); // При покупке билет еще не отсканирован
+            ticket.setQrCode(UUID.randomUUID().toString());
+            ticket.setScanned(false);
             return ticket;
         }).collect(Collectors.toList());
 
         order.setTickets(generatedTickets);
-        // --- МАГИЯ QR-КОДОВ (Конец) ---
 
         Order savedOrder = orderRepository.save(order);
 
-        // 7. Обновляем ивент (добавляем места в список проданных и увеличиваем счетчик)
+        // 7. Обновляем ивент
         event.getSoldSeats().addAll(request.getSeatIds());
         int currentSold = (event.getSold() == null) ? 0 : event.getSold();
         event.setSold(currentSold + request.getSeatIds().size());
@@ -102,32 +99,25 @@ public class OrderService {
     }
 
     public String scanTicket(String qrCode) {
-        // 1. Ищем заказ, в котором есть этот QR-код
         Order order = orderRepository.findByTickets_QrCode(qrCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bilet tapılmadı və ya saxtadır!")); // Билет не найден
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bilet tapılmadı və ya saxtadır!"));
 
-        // 2. Достаем конкретный билет из списка
         OrderTicket matchedTicket = order.getTickets().stream()
                 .filter(t -> t.getQrCode().equals(qrCode))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bilet tapılmadı!"));
 
-        // 3. Проверяем, не сканировали ли его раньше
         if (matchedTicket.isScanned()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "DİQQƏT: Bu bilet artıq istifadə olunub!"); // Билет уже использован!
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "DİQQƏT: Bu bilet artıq istifadə olunub!");
         }
 
-        // 4. Помечаем как отсканированный и сохраняем
         matchedTicket.setScanned(true);
         orderRepository.save(order);
 
         return "Uğurlu! Girişə icazə verildi. (Yer: " + matchedTicket.getSeatId() + ")";
     }
 
-    // Внутри OrderService.java
-
     public Order createAdminOrder(AdminOrderRequest request, String organizerEmail) {
-        // 1. Ищем ивент и проверяем права
         Event event = eventRepository.findById(request.getEventId())
                 .orElseThrow(() -> new RuntimeException("Event not found"));
 
@@ -135,45 +125,170 @@ public class OrderService {
             throw new RuntimeException("У вас нет прав для бронирования билетов на этот ивент");
         }
 
-        // 2. Проверяем доступность мест (для физических мест)
         if (event.getIsReservedSeating() != null && event.getIsReservedSeating()) {
             for (String seatId : request.getSeatIds()) {
                 if (event.getSoldSeats().contains(seatId)) {
                     throw new RuntimeException("Место " + seatId + " уже занято");
                 }
             }
-            // Добавляем места в список проданных
             event.getSoldSeats().addAll(request.getSeatIds());
+            if (event.getAdminSeats() == null) event.setAdminSeats(new ArrayList<>());
+            event.getAdminSeats().addAll(request.getSeatIds());
         }
 
-        // Обновляем общее количество проданных билетов
         event.setSold(event.getSold() + request.getSeatIds().size());
         eventRepository.save(event);
 
-        // 3. Создаем объект заказа
         Order order = new Order();
         order.setEventId(event.getId());
-        order.setCustomerName(request.getCustomerName());
-        order.setCustomerEmail(request.getCustomerEmail());
+
+        // ВАЖНО: Заменяем фейковые данные на реальные данные менеджера
+        order.setCustomerName("ADMIN BLOCK".equals(request.getCustomerName()) ? "Təşkilatçı (Blok)" : request.getCustomerName());
+        order.setCustomerEmail("admin@tickit.az".equals(request.getCustomerEmail()) ? organizerEmail : request.getCustomerEmail());
+
         order.setCustomerPhone(request.getCustomerPhone());
         order.setSeatIds(request.getSeatIds());
-        order.setTotalAmount(0.0); // Всегда 0 для админ-брони
+        order.setTotalAmount(0.0);
         order.setOriginalAmount(0.0);
-        order.setStatus("SUCCESS"); // Сразу успех
+        order.setStatus("SUCCESS");
         order.setCreatedAt(LocalDateTime.now());
 
-        // 4. Генерируем билеты (используем твою логику с QR)
         List<OrderTicket> tickets = request.getSeatIds().stream().map(seatId -> {
             OrderTicket ticket = new OrderTicket();
             ticket.setTicketNumber("ADM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
             ticket.setSeatId(seatId);
             ticket.setQrCode(event.getShortLink() + "-" + seatId + "-" + UUID.randomUUID().toString().substring(0, 4));
-            ticket.setUsed(false);
+            ticket.setScanned(false);
             return ticket;
         }).collect(Collectors.toList());
 
         order.setTickets(tickets);
 
         return orderRepository.save(order);
+    }
+
+    @Transactional
+    public void unbookAdminSeats(String eventId, List<String> seatIds, String organizerEmail) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new RuntimeException("Event not found"));
+
+        if (!event.getOrganizerId().equals(organizerEmail)) {
+            throw new RuntimeException("No permission");
+        }
+
+        // Достаем все заказы один раз, чтобы не грузить базу
+        List<Order> eventOrders = orderRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+
+        for (String seatId : seatIds) {
+            // Ищем заказ, в котором лежит это место
+            Order orderToUpdate = eventOrders.stream()
+                    .filter(o -> o.getSeatIds() != null && o.getSeatIds().contains(seatId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (orderToUpdate != null) {
+                if (orderToUpdate.getTotalAmount() != null && orderToUpdate.getTotalAmount() > 0) {
+                    throw new RuntimeException("Нельзя отменить билет, купленный клиентом!");
+                }
+
+                orderToUpdate.getSeatIds().remove(seatId);
+
+                if (orderToUpdate.getTickets() != null) {
+                    orderToUpdate.getTickets().removeIf(t -> t.getSeatId() != null && t.getSeatId().equals(seatId));
+                }
+
+                // Если заказ стал пустым - СТИРАЕМ ЕГО!
+                if (orderToUpdate.getSeatIds().isEmpty()) {
+                    orderRepository.delete(orderToUpdate);
+                    eventOrders.remove(orderToUpdate);
+                } else {
+                    orderRepository.save(orderToUpdate);
+                }
+            }
+
+            // Освобождаем места в ивенте
+            if (event.getSoldSeats() != null) event.getSoldSeats().remove(seatId);
+            if (event.getAdminSeats() != null) event.getAdminSeats().remove(seatId);
+            event.setSold(Math.max(0, event.getSold() - 1));
+        }
+
+        eventRepository.save(event);
+    }
+
+    @Transactional
+    public void unbookAdminSeats(String eventId, String seatId, String organizerEmail) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new RuntimeException("Event not found"));
+
+        if (!event.getOrganizerId().equals(organizerEmail)) {
+            throw new RuntimeException("No permission");
+        }
+
+        List<Order> orders = orderRepository.findAll().stream()
+                .filter(o -> o.getEventId().equals(eventId) && o.getSeatIds() != null && o.getSeatIds().contains(seatId))
+                .collect(Collectors.toList());
+
+        if (orders.isEmpty()) {
+            throw new RuntimeException("Бронь не найдена");
+        }
+
+        Order orderToUpdate = orders.get(0);
+
+        if (orderToUpdate.getTotalAmount() != null && orderToUpdate.getTotalAmount() > 0) {
+            throw new RuntimeException("Нельзя отменить билет, купленный клиентом!");
+        }
+
+        orderToUpdate.getSeatIds().remove(seatId);
+
+        if (orderToUpdate.getTickets() != null) {
+            orderToUpdate.getTickets().removeIf(t -> t.getSeatId() != null && t.getSeatId().equals(seatId));
+        }
+
+        if (orderToUpdate.getSeatIds().isEmpty()) {
+            orderRepository.delete(orderToUpdate);
+        } else {
+            orderRepository.save(orderToUpdate);
+        }
+
+        // Освобождаем место
+        if (event.getSoldSeats() != null) {
+            event.getSoldSeats().remove(seatId);
+        }
+
+        // ВАЖНО: Удаляем из списка админских мест!
+        if (event.getAdminSeats() != null) {
+            event.getAdminSeats().remove(seatId);
+        }
+
+        event.setSold(Math.max(0, event.getSold() - 1));
+        eventRepository.save(event);
+    }
+
+    public List<az.tickit.order.dto.OrderResponse> getAllOrganizerOrders(String organizerEmail) {
+        List<Event> myEvents = eventRepository.findByOrganizerId(organizerEmail);
+        List<String> eventIds = myEvents.stream().map(Event::getId).collect(Collectors.toList());
+
+        return orderRepository.findAll().stream()
+                .filter(o -> eventIds.contains(o.getEventId()))
+                .map(o -> {
+                    Event event = myEvents.stream()
+                            .filter(e -> e.getId().equals(o.getEventId()))
+                            .findFirst().orElse(null);
+
+                    return az.tickit.order.dto.OrderResponse.builder()
+                            .id(o.getId().substring(Math.max(0, o.getId().length() - 6)).toUpperCase())
+                            .eventName(event != null ? event.getTitle() : "Naməlum")
+                            .customer(o.getCustomerName())
+                            .email(o.getCustomerEmail())
+                            .type(o.getSeatIds() != null ? o.getSeatIds().size() : 1)
+                            .amount(o.getTotalAmount() != null ? o.getTotalAmount() : 0.0)
+                            .date(o.getCreatedAt())
+                            .status(o.getStatus())
+                            .promoCode(o.getPromoCode())
+                            .isInvite(o.getTotalAmount() == null || o.getTotalAmount() == 0)
+                            .build();
+                })
+                .sorted(Comparator.comparing(az.tickit.order.dto.OrderResponse::getDate).reversed())
+                .collect(Collectors.toList());
     }
 }
