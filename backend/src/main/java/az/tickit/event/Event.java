@@ -81,4 +81,10 @@ public class Event {
     private Integer views;
 
     private List<String> adminSeats = new ArrayList<>();
+
+    @org.springframework.data.annotation.Transient
+    private String organizerCompanyName;
+
+    @org.springframework.data.annotation.Transient
+    private String organizerCompanyPhone;
 }

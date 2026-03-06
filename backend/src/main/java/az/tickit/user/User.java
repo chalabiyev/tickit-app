@@ -2,7 +2,7 @@ package az.tickit.user;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data; // Добавили это
+import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -13,7 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
-@Data // Генерирует все get и set автоматически
+@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -22,39 +22,39 @@ public class User implements UserDetails {
 
     @Id
     private String id;
-
-    private String fullName;
-    private String firstName; // Добавили
-    private String lastName;  // Добавили
-    private String companyName; // Добавили
-    private String avatarUrl;  // Добавили
-
     private String email;
-    private String phone;
     private String password;
-
+    private String phone;
     @Builder.Default
     private String role = "ROLE_USER";
+
+    // Личные данные
+    private String fullName;
+    private String firstName;
+    private String lastName;
+    private String avatarUrl;
+
+    // Данные организации
+    private String companyName;
+    private String voen;
+    private String legalAddress;
+    private String responsiblePerson;
+    private String extraContact;
+    private String instagramUrl;
+    private String websiteUrl;
+
+    // Банковские данные
+    private String iban;
+    private String bankName;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(role));
     }
 
-    @Override
-    public String getUsername() {
-        return email;
-    }
-
-    @Override
-    public boolean isAccountNonExpired() { return true; }
-
-    @Override
-    public boolean isAccountNonLocked() { return true; }
-
-    @Override
-    public boolean isCredentialsNonExpired() { return true; }
-
-    @Override
-    public boolean isEnabled() { return true; }
+    @Override public String getUsername() { return email; }
+    @Override public boolean isAccountNonExpired() { return true; }
+    @Override public boolean isAccountNonLocked() { return true; }
+    @Override public boolean isCredentialsNonExpired() { return true; }
+    @Override public boolean isEnabled() { return true; }
 }

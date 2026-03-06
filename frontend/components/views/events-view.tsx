@@ -321,6 +321,31 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
               ))}
             </div>
           </TabsContent>
+
+          {/* --- ДОБАВЬ ЭТОТ БЛОК ДЛЯ ПРОШЕДШИХ ИВЕНТОВ --- */}
+          <TabsContent value="past" className="focus-visible:outline-none">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {pastEvents.length > 0 ? (
+                pastEvents.map((event) => (
+                  <EventCard 
+                    key={event.id} 
+                    event={event} 
+                    onEdit={onEditEvent} 
+                    onManage={onManageEvent} 
+                    onAdminBook={(ev) => {
+                      setSelectedEventForBooking(ev);
+                      setIsAdminBookingOpen(true);
+                    }}
+                  />
+                ))
+              ) : (
+                <div className="col-span-full py-10 text-center text-muted-foreground">
+                  Keçmiş tədbir tapılmadı.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          {/* ------------------------------------------- */}
         </Tabs>
       )}
 

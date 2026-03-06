@@ -21,9 +21,23 @@ function getInitials(name: string | undefined): string {
   return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "AK"
 }
 
-// ВАЖНО: Без слова default!
+interface AppSidebarProps {
+  activePage: string
+  onNavigate: (page: string) => void
+  user?: { 
+    fullName: string; 
+    email: string; 
+    avatarUrl?: string; 
+  } | null
+}
+
 export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
   const { locale } = useLocale()
+  
+  // Формируем полный путь к аватарке
+  const avatarSrc = user?.avatarUrl 
+    ? (user.avatarUrl.startsWith('http') ? user.avatarUrl : `http://localhost:8080${user.avatarUrl}`)
+    : null;
 
   return (
     <aside className="flex h-full w-full flex-col bg-background border-r border-border">
@@ -41,7 +55,7 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-2 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 px-3 py-2 overflow-y-auto">
         <ul className="flex flex-col gap-1">
           {navItems.map((item) => {
             const Icon = item.icon
@@ -66,21 +80,19 @@ export function AppSidebar({ activePage, onNavigate, user }: AppSidebarProps) {
 
       <div className="p-3 border-t border-border mt-auto">
         <div className="flex items-center gap-3 rounded-xl hover:bg-secondary/40 p-2 transition-all cursor-pointer group">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground border border-border group-hover:border-primary/30 transition-colors">
-            {getInitials(user?.fullName)}
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary overflow-hidden border border-border group-hover:border-primary/30 transition-colors">
+            {avatarSrc ? (
+              <img src={avatarSrc} className="w-full h-full object-cover" alt="Avatar" />
+            ) : (
+              <span className="text-xs font-bold text-foreground">{getInitials(user?.fullName)}</span>
+            )}
           </div>
           <div className="flex flex-col overflow-hidden">
-            <span className="truncate text-sm font-bold text-foreground">{user?.fullName ?? "User"}</span>
+            <span className="truncate text-sm font-bold text-foreground">{user?.fullName ?? "İstifadəçi"}</span>
             <span className="truncate text-[11px] text-muted-foreground font-medium">{user?.email ?? "admin@eticksystem.com"}</span>
           </div>
         </div>
       </div>
     </aside>
   )
-}
-
-interface AppSidebarProps {
-  activePage: string
-  onNavigate: (page: string) => void
-  user?: { fullName: string; email: string } | null
 }

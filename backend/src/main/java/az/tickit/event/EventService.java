@@ -3,6 +3,7 @@ package az.tickit.event;
 import az.tickit.event.dto.CreateEventRequest;
 import az.tickit.order.Order;
 import az.tickit.order.OrderRepository;
+import az.tickit.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,7 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final OrderRepository orderRepository;
+    private final UserRepository userRepository;
 
     public Event createEvent(CreateEventRequest request, String organizerEmail) {
         int totalCapacity = request.getTiers().stream()
@@ -248,10 +250,27 @@ public class EventService {
     }
 
     public Event getEventByShortLink(String shortLink) {
-        Event event = eventRepository.findByShortLink(shortLink).filter(e -> !e.isDeleted()).orElseThrow(() -> new RuntimeException("Not found"));
-        int currentViews = event.getViews() != null ? event.getViews() : 0;
-        event.setViews(currentViews + 1);
-        eventRepository.save(event);
+        // 1. Находим ивент в базе
+        Event event = eventRepository.findByShortLink(shortLink)
+                .orElseThrow(() -> new RuntimeException("Event not found"));
+
+        // 2. ДОБАВЛЯЕМ ДАННЫЕ ОРГАНИЗАТОРА ДЛЯ БИЛЕТОВ
+        // Предполагаю, что в Event у тебя хранится ID создателя (например, managerId, userId или organizerId)
+        // Замени event.getUserId() на то, как у тебя называется поле с ID создателя
+        userRepository.findByEmail(event.getOrganizerId()).ifPresent(user -> {
+
+            // Если есть название компании - берем его. Если нет - берем Имя Фамилию
+            if (user.getCompanyName() != null && !user.getCompanyName().isEmpty()) {
+                event.setOrganizerCompanyName(user.getCompanyName());
+            } else {
+                event.setOrganizerCompanyName(user.getFullName() != null ? user.getFullName() : user.getFirstName());
+            }
+
+            // Передаем телефон
+            event.setOrganizerCompanyPhone(user.getPhone());
+        });
+
+        // 3. Возвращаем ивент (он уже с нужными полями)
         return event;
     }
 

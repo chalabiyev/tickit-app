@@ -15,6 +15,10 @@ import { Separator } from "@/components/ui/separator"
 import { QrCode, Type, Palette, Maximize, Trash, Image as ImageIcon, LayoutTemplate, AlignLeft, AlignCenter, AlignRight, Upload, Loader2, ArrowLeft, MoveHorizontal, MoveVertical, Ticket } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+// ИМПОРТИРУЕМ ШАБЛОНЫ ИЗ ВНЕШНЕГО ФАЙЛА
+// (Убедись, что путь к файлу правильный!)
+import { TICKET_TEMPLATES } from "@/lib/ticket-templates"
+
 export type ElementType = 'text' | 'qr' | 'image'
 
 export interface TicketElement {
@@ -36,52 +40,8 @@ interface TicketDesignEditorProps {
   buyerQuestions?: { id: string; label: string; required: boolean }[];
 }
 
-const HEADER_HEIGHT = 70; // "Потолок" для элементов
+const HEADER_HEIGHT = 70; 
 const CANVAS_WIDTH = 360;
-
-// НОВЫЕ ПРЕМИУМ-ШАБЛОНЫ
-const TEMPLATES: Record<string, TicketDesign> = {
-  minimalDark: { 
-    bgColor: "#09090b", bgImage: null, bgOverlay: 0, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0,
-    elements: [
-      { id: 'qr-1', type: 'qr', x: 120, y: 460, content: 'QR_CODE', color: '#ffffff', fontSize: 120, fontWeight: 'normal' }, 
-      { id: 't-1', type: 'text', x: 24, y: 100, content: '{{Event_Name}}', color: '#ffffff', fontSize: 32, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }, 
-      { id: 't-2', type: 'text', x: 24, y: 150, content: '{{Event_Date}} • {{Location}}', color: '#a1a1aa', fontSize: 14, fontWeight: 'normal', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }, 
-      { id: 't-3', type: 'text', x: 24, y: 220, content: '{{Guest_Name}}', color: '#ffffff', fontSize: 24, fontWeight: 'bold', fontFamily: '"Courier New", Courier, monospace', textAlign: 'left', width: 312 }, 
-      { id: 't-4', type: 'text', x: 24, y: 260, content: '{{Ticket_Type}} • {{Seat_Info}}', color: '#3b82f6', fontSize: 16, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }
-    ] 
-  },
-  goldVip: { 
-    bgColor: "#0f172a", bgImage: null, bgOverlay: 0, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0,
-    elements: [
-      { id: 'qr-1', type: 'qr', x: 120, y: 440, content: 'QR_CODE', color: '#ffffff', fontSize: 120, fontWeight: 'normal' }, 
-      { id: 't-1', type: 'text', x: 0, y: 110, content: '{{Event_Name}}', color: '#d4af37', fontSize: 30, fontWeight: 'bold', fontFamily: 'Georgia, serif', textAlign: 'center', width: CANVAS_WIDTH }, 
-      { id: 't-2', type: 'text', x: 0, y: 200, content: 'V I P   T I C K E T', color: '#d4af37', fontSize: 14, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'center', width: CANVAS_WIDTH }, 
-      { id: 't-3', type: 'text', x: 0, y: 240, content: '{{Guest_Name}}', color: '#ffffff', fontSize: 26, fontWeight: 'normal', fontFamily: 'Georgia, serif', textAlign: 'center', width: CANVAS_WIDTH },
-      { id: 't-4', type: 'text', x: 0, y: 280, content: '{{Seat_Info}}', color: '#94a3b8', fontSize: 16, fontWeight: 'normal', fontFamily: 'Arial, sans-serif', textAlign: 'center', width: CANVAS_WIDTH }
-    ] 
-  },
-  milliAz: { 
-    bgColor: "#00b5e2", bgImage: null, bgOverlay: 0, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0,
-    elements: [
-      { id: 'qr-1', type: 'qr', x: 120, y: 450, content: 'QR_CODE', color: '#ffffff', fontSize: 120, fontWeight: 'normal' }, 
-      { id: 't-1', type: 'text', x: 0, y: 110, content: '{{Event_Name}}', color: '#ffffff', fontSize: 36, fontWeight: 'bold', fontFamily: 'Impact, Charcoal, sans-serif', textAlign: 'center', width: CANVAS_WIDTH }, 
-      { id: 't-2', type: 'text', x: 0, y: 165, content: '{{Event_Date}}', color: '#509e2f', fontSize: 20, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'center', width: CANVAS_WIDTH }, 
-      { id: 't-3', type: 'text', x: 0, y: 240, content: '{{Guest_Name}}', color: '#ffffff', fontSize: 28, fontWeight: 'bold', fontFamily: '"Trebuchet MS", sans-serif', textAlign: 'center', width: CANVAS_WIDTH }, 
-      { id: 't-4', type: 'text', x: 0, y: 280, content: '{{Ticket_Type}} | {{Seat_Info}}', color: '#ef3340', fontSize: 18, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'center', width: CANVAS_WIDTH }
-    ] 
-  },
-  corporateBlue: {
-    bgColor: "#ffffff", bgImage: null, bgOverlay: 0, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0,
-    elements: [
-      { id: 'qr-1', type: 'qr', x: 24, y: 450, content: 'QR_CODE', color: '#000000', fontSize: 110, fontWeight: 'normal' }, 
-      { id: 't-1', type: 'text', x: 24, y: 100, content: '{{Event_Name}}', color: '#0f172a', fontSize: 28, fontWeight: 'bold', fontFamily: '"Trebuchet MS", sans-serif', textAlign: 'left', width: 312 }, 
-      { id: 't-2', type: 'text', x: 24, y: 145, content: '{{Location}}', color: '#64748b', fontSize: 14, fontWeight: 'normal', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }, 
-      { id: 't-3', type: 'text', x: 24, y: 240, content: '{{Guest_Name}}', color: '#0f172a', fontSize: 30, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }, 
-      { id: 't-4', type: 'text', x: 24, y: 285, content: '{{Ticket_Type}}', color: '#2563eb', fontSize: 16, fontWeight: 'bold', fontFamily: 'Arial, sans-serif', textAlign: 'left', width: 312 }
-    ]
-  }
-}
 
 const FONTS = [
   { name: 'Inter / Arial', value: 'Arial, sans-serif' },
@@ -101,16 +61,14 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
   
   const [selectedId, setSelectedId] = useState<string | null>(null)
   
-  // Состояния для перетаскивания и ресайза
   const [interactionMode, setInteractionMode] = useState<'none'|'move'|'resize'>('none')
   const [isUploading, setIsUploading] = useState(false)
   
-  // Для расчетов при перетаскивании
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [initialSize, setInitialSize] = useState(0)
 
-  // ЖЕСТКАЯ ЗАЩИТА: Если design пустой, берем дефолтный
-  const safeDesign = design || TEMPLATES.minimalDark;
+  // БЕРЕМ ДЕФОЛТНЫЙ ШАБЛОН ИЗ ИМПОРТИРОВАННОГО ОБЪЕКТА
+  const safeDesign = design && design.elements ? design : TICKET_TEMPLATES.classicDark;
 
   const currentDesign = {
     ...safeDesign,
@@ -130,7 +88,10 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
       .replace(/{{Location}}/g, eventDetails.location || "Baku, AZ")
       .replace(/{{Guest_Name}}/g, "John Doe")
       .replace(/{{Ticket_Type}}/g, "VIP")
-      .replace(/{{Seat_Info}}/g, "Row 1, Seat 12");
+      .replace(/{{Seat_Info}}/g, "Row 1, Seat 12")
+      // ДОБАВЛЕННЫЕ ТЕГИ ОРГАНИЗАТОРА
+      .replace(/{{Company_Name}}/g, "My Company MMC") // В реальном билете сюда пойдет form.companyName
+      .replace(/{{Company_Phone}}/g, "+994 50 123 45 67");
 
     buyerQuestions.forEach(q => {
       if (q.label.trim()) {
@@ -141,9 +102,7 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
     return preview;
   }
 
-  // === ЛОГИКА МЫШИ (ДРАГ И РЕСАЙЗ) ===
   const handleElementPointerDown = (e: React.PointerEvent, id: string, mode: 'move'|'resize') => { 
-    // Отключаем дефолтное поведение браузера (выделение текста, картинок)
     e.preventDefault(); 
     e.stopPropagation(); 
     
@@ -155,9 +114,8 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
       if (mode === 'move') {
         setDragOffset({ x: e.clientX - el.x, y: e.clientY - el.y }); 
       } else if (mode === 'resize') {
-        // Запоминаем изначальный размер для ресайза
         setInitialSize(el.type === 'text' ? el.fontSize : (el.width || el.fontSize));
-        setDragOffset({ x: e.clientX, y: e.clientY }); // Используем dragOffset для хранения стартовой точки мыши
+        setDragOffset({ x: e.clientX, y: e.clientY }); 
       }
     }
     containerRef.current?.setPointerCapture(e.pointerId) 
@@ -170,22 +128,19 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
       let newX = e.clientX - dragOffset.x; 
       let newY = e.clientY - dragOffset.y; 
       
-      // ПОТОЛОК: Не даем элементу залезть на шапку TICKIT
       if (newY < HEADER_HEIGHT) newY = HEADER_HEIGHT;
-      // ОГРАНИЧИТЕЛЬ: Не даем улететь за левый/правый край
       if (newX < -200) newX = -200; 
 
       onChange({ ...currentDesign, elements: currentDesign.elements.map(el => el.id === selectedId ? { ...el, x: newX, y: newY } : el) }) 
     
     } else if (interactionMode === 'resize') {
       const dx = e.clientX - dragOffset.x;
-      // Меняем размер на величину смещения мыши (с коэффициентом для плавности)
       const newSize = Math.max(10, Math.floor(initialSize + dx * 0.8)); 
       
       onChange({ ...currentDesign, elements: currentDesign.elements.map(el => {
         if (el.id !== selectedId) return el;
         if (el.type === 'text') return { ...el, fontSize: newSize };
-        return { ...el, width: newSize, height: newSize, fontSize: newSize }; // Для QR и Image
+        return { ...el, width: newSize, height: newSize, fontSize: newSize }; 
       })})
     }
   }
@@ -195,11 +150,9 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
     if (containerRef.current?.hasPointerCapture(e.pointerId)) containerRef.current.releasePointerCapture(e.pointerId) 
   }
 
-  // === ОБНОВЛЕНИЕ ПАРАМЕТРОВ ЧЕРЕЗ МЕНЮ ===
   const updateSelected = (updates: Partial<TicketElement>) => { 
     if (!selectedId) return; 
     
-    // ИДЕАЛЬНОЕ ВЫРАВНИВАНИЕ: Растягиваем блок по ширине, чтобы центровка работала
     if (updates.textAlign === 'center') {
       updates.x = 0; updates.width = CANVAS_WIDTH;
     } else if (updates.textAlign === 'left') {
@@ -215,7 +168,7 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
     const newEl: TicketElement = { 
       id: `el-${Date.now()}`, type, x: 24, y: 300, content, 
       color: '#ffffff', fontSize: type === 'qr' ? 100 : 18, fontWeight: 'normal', fontFamily: 'Arial, sans-serif', textAlign: 'left',
-      width: type === 'text' ? (CANVAS_WIDTH - 48) : 100, // По умолчанию текст на всю ширину с отступами
+      width: type === 'text' ? (CANVAS_WIDTH - 48) : 100, 
       ...additionalProps
     }; 
     onChange({ ...currentDesign, elements: [...currentDesign.elements, newEl] }); 
@@ -229,9 +182,9 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
     setSelectedId(null) 
   }
 
-  const applyTemplate = (key: keyof typeof TEMPLATES) => { onChange(TEMPLATES[key]); setSelectedId(null) }
+  // ПРИМЕНЕНИЕ НОВЫХ ШАБЛОНОВ
+  const applyTemplate = (key: keyof typeof TICKET_TEMPLATES) => { onChange(TICKET_TEMPLATES[key]); setSelectedId(null) }
 
-  // ЗАГРУЗКА ФОНА И ЛОГОТИПОВ
   const handleBgImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; setIsUploading(true); const formData = new FormData(); formData.append("file", file)
     try { 
@@ -257,7 +210,6 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
   return (
     <div className="flex flex-col lg:flex-row gap-8 animate-in slide-in-from-bottom-4 duration-500 items-start">
       
-      {/* КАНВАС БИЛЕТА (Увеличенный размер 360x640) */}
       <div className="flex-1 flex flex-col items-center justify-center bg-secondary/20 rounded-[2rem] border-2 border-border/50 p-6 lg:p-10 shadow-inner relative w-full overflow-hidden">
         <div 
           ref={containerRef} 
@@ -265,7 +217,6 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
           style={{ backgroundColor: currentDesign.bgColor, touchAction: 'none' }} 
           onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} onPointerDown={() => setSelectedId(null)}
         >
-          {/* Слой Изображения Фона (Используем Translate для правильного сдвига) */}
           {currentDesign.bgImage && (
             <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
               <img 
@@ -279,18 +230,15 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
             </div>
           )}
 
-          {/* Слой затемнения фона */}
           {currentDesign.bgImage && (<div className="absolute inset-0 z-0 pointer-events-none" style={{ backgroundColor: `rgba(0,0,0,${currentDesign.bgOverlay})` }} />)}
           
-          {/* ФИКСИРОВАННАЯ ШАПКА БИЛЕТА (TICKIT BRANDING) */}
           <div className="absolute top-0 left-0 right-0 h-[70px] bg-zinc-950 text-white flex items-center justify-center z-40 border-b border-white/10 shadow-sm pointer-events-none">
             <div className="flex items-center gap-2 opacity-95">
               <Ticket className="h-6 w-6" />
-              <span className="font-black tracking-[0.25em] text-lg mt-0.5">TICKIT</span>
+              <span className="font-black tracking-[0.25em] text-lg mt-0.5">eticksystem</span>
             </div>
           </div>
 
-          {/* РЕНДЕР ЭЛЕМЕНТОВ */}
           {currentDesign.elements.map(el => (
             <div 
               key={el.id} 
@@ -307,7 +255,6 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
               {el.type === 'qr' && (<div className="w-full h-full bg-white rounded-2xl flex items-center justify-center p-3 shadow-md border pointer-events-none"><QrCode className="w-full h-full text-black" /></div>)}
               {el.type === 'image' && el.src && (<img src={el.src} alt="logo" className="w-full h-full object-contain pointer-events-none select-none drop-shadow-sm" draggable={false} />)}
               
-              {/* ТОЧКА ДЛЯ ИЗМЕНЕНИЯ РАЗМЕРА (RESIZE HANDLE) */}
               {selectedId === el.id && (
                 <div 
                   className="absolute -bottom-2 -right-2 w-5 h-5 bg-primary border-2 border-white rounded-full cursor-nwse-resize z-50 shadow-md hover:scale-110 transition-transform"
@@ -322,7 +269,6 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
         </span>
       </div>
 
-      {/* ПАНЕЛЬ ИНСТРУМЕНТОВ */}
       <div className="w-full lg:w-[400px] flex flex-col gap-4">
         <Tabs defaultValue="elements" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -331,20 +277,28 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
             <TabsTrigger value="elements" className="text-xs"><Type className="h-3.5 w-3.5 mr-1.5"/> {t(locale, "elements") || "Elements"}</TabsTrigger>
           </TabsList>
           
-          {/* ВКЛАДКА: ПРЕСЕТЫ */}
+          {/* ОБНОВЛЕННАЯ ВКЛАДКА: ПРЕСЕТЫ */}
           <TabsContent value="templates" className="mt-4 flex flex-col gap-3">
             <Card className="border-border/60 shadow-sm">
               <CardContent className="p-5 flex flex-col gap-3">
                 <span className="text-sm font-semibold mb-2">{t(locale, "quickTemplates") || "Quick Templates"}</span>
-                <Button variant="outline" className="justify-start gap-3 h-12" onClick={() => applyTemplate('minimalDark')}><div className="w-6 h-6 rounded bg-[#09090b] border" /> Minimal Dark</Button>
-                <Button variant="outline" className="justify-start gap-3 h-12" onClick={() => applyTemplate('goldVip')}><div className="w-6 h-6 rounded bg-[#0f172a] border border-yellow-600/50" /> Gold VIP</Button>
-                <Button variant="outline" className="justify-start gap-3 h-12" onClick={() => applyTemplate('milliAz')}><div className="w-6 h-6 rounded bg-[#00b5e2] border border-[#ef3340]" /> Milli (AZ)</Button>
-                <Button variant="outline" className="justify-start gap-3 h-12" onClick={() => applyTemplate('corporateBlue')}><div className="w-6 h-6 rounded bg-white border border-blue-600" /> Corporate White</Button>
+                <Button variant="outline" className="justify-start gap-3 h-12 hover:bg-secondary/50 transition-colors" onClick={() => applyTemplate('classicDark')}>
+                  <div className="w-6 h-6 rounded bg-[#09090b] border border-white/10" /> Classic Dark
+                </Button>
+                <Button variant="outline" className="justify-start gap-3 h-12 hover:bg-secondary/50 transition-colors" onClick={() => applyTemplate('elegantLight')}>
+                  <div className="w-6 h-6 rounded bg-[#ffffff] border border-black/10" /> Elegant Light
+                </Button>
+                <Button variant="outline" className="justify-start gap-3 h-12 hover:bg-secondary/50 transition-colors" onClick={() => applyTemplate('neonCyber')}>
+                  <div className="w-6 h-6 rounded bg-[#020617] border border-cyan-500/50" /> Neon Cyber
+                </Button>
+                <Button variant="outline" className="justify-start gap-3 h-12 hover:bg-secondary/50 transition-colors" onClick={() => applyTemplate('goldVip')}>
+                  <div className="w-6 h-6 rounded bg-[#1e293b] border border-amber-500/50" /> Gold VIP
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
           
-          {/* ВКЛАДКА: ФОН */}
+          {/* ВКЛАДКА: ФОН (Осталась без изменений) */}
           <TabsContent value="background" className="mt-4 flex flex-col gap-3">
             <Card className="border-border/60 shadow-sm">
               <CardContent className="p-6 flex flex-col gap-8">
@@ -369,7 +323,6 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
                         <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onChange({ ...currentDesign, bgImage: null })}><Trash className="h-4 w-4" /></Button>
                       </div>
                       
-                      {/* УПРАВЛЕНИЕ ФОНОМ (ИСПРАВЛЕНО НА ПИКСЕЛИ) */}
                       <div className="flex flex-col gap-4 bg-secondary/20 p-4 rounded-xl border">
                         <div className="flex flex-col gap-3">
                           <div className="flex justify-between"><Label className="text-xs font-semibold flex items-center gap-1.5"><Maximize className="h-3.5 w-3.5 text-primary"/> {t(locale, "zoom") || "Zoom"}</Label><span className="text-xs text-muted-foreground font-mono">{currentDesign.bgScale}%</span></div>
@@ -398,7 +351,7 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
             </Card>
           </TabsContent>
           
-          {/* ВКЛАДКА: ЭЛЕМЕНТЫ */}
+          {/* ВКЛАДКА: ЭЛЕМЕНТЫ (Осталась без изменений) */}
           <TabsContent value="elements" className="mt-4 flex flex-col gap-3">
             <Card className="border-border/60 shadow-sm flex-1">
               <CardHeader className="pb-4 border-b mb-5 flex flex-row items-center justify-between bg-secondary/10 rounded-t-xl">
@@ -517,6 +470,8 @@ export function TicketDesignEditor({ design, onChange, eventDetails, buyerQuesti
                         <Button variant="outline" className="text-xs h-10 border-dashed font-mono bg-primary/5 text-primary border-primary/20 hover:bg-primary/10" onClick={() => addElement('{{Guest_Name}}')}>+ Guest Name</Button>
                         <Button variant="outline" className="text-xs h-10 border-dashed font-mono bg-primary/5 text-primary border-primary/20 hover:bg-primary/10" onClick={() => addElement('{{Ticket_Type}}')}>+ Ticket Type</Button>
                         <Button variant="outline" className="text-xs h-10 border-dashed font-mono bg-primary/5 text-primary border-primary/20 hover:bg-primary/10" onClick={() => addElement('{{Seat_Info}}')}>+ Row & Seat</Button>
+                        <Button variant="outline" className="text-[10px] h-10 border-dashed font-mono bg-secondary/20" onClick={() => addElement('{{Company_Name}}')}>+ Company Name</Button>
+                        <Button variant="outline" className="text-[10px] h-10 border-dashed font-mono bg-secondary/20" onClick={() => addElement('{{Company_Phone}}')}>+ Company Phone</Button>
                         
                         {buyerQuestions.filter(q => q.label.trim()).map(q => (
                           <Button key={q.id} variant="secondary" className="text-xs h-10 border border-border/50 font-mono shadow-sm" onClick={() => addElement(`{{${q.label}}}`)}>

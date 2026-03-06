@@ -15,6 +15,10 @@ import {
   Tag, Check
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { TICKET_TEMPLATES } from "@/lib/ticket-templates"
+import { QRCodeSVG } from 'qrcode.react'
+import { toPng } from 'html-to-image';
+
 
 const DEFAULT_COVER = "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&h=800&fit=crop"
 const GRID = 36; 
@@ -170,6 +174,31 @@ export default function PublicEventPage() {
   
   const [toast, setToast] = useState<{ show: boolean, message: string, type: 'error' | 'success' }>({ show: false, message: '', type: 'error' })
 
+  // Стейт для скрытого рендера
+  const [ticketsToRender, setTicketsToRender] = useState<any[]>([])
+
+  // Функция для замены смарт-тегов
+  // Функция для замены смарт-тегов
+  const fillTags = (content: string, tData: any) => {
+    if (!content) return "";
+
+    // УМНЫЙ ПОИСК ДАННЫХ: ищем по разным вариантам названий полей, которые могут прийти с бэкенда
+    const realCompanyName = event?.organizerCompanyName || event?.companyName || event?.organizer?.name || event?.organizer?.companyName || "Təşkilatçı";
+    const realCompanyPhone = event?.organizerCompanyPhone || event?.companyPhone || event?.organizer?.phone || "-";
+
+    return content
+      .replace(/{{Event_Name}}/gi, event?.title || "")
+      .replace(/{{Event_Date}}/gi, event?.eventDate || "")
+      .replace(/{{Location}}/gi, event?.isPhysical ? (event?.venueName || event?.address) : "Online Event")
+      .replace(/{{Guest_Name}}/gi, `${buyerInfo.firstName} ${buyerInfo.lastName}`)
+      .replace(/{{Ticket_Type}}/gi, tData?.tier?.name || "Standard")
+      .replace(/{{Seat_Info}}/gi, tData?.seatLabel || "")
+      .replace(/{{Company_Name}}/gi, realCompanyName)
+      .replace(/{{Company_Phone}}/gi, realCompanyPhone)
+      .replace(/ATTENDEE_ID/g, "Ad Soyad")
+      .replace(/\/\/ SCAN_TO_ENTER \/\//g, "Giriş üçün skan edin");
+  }
+
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
@@ -178,6 +207,8 @@ export default function PublicEventPage() {
         const res = await fetch(`http://localhost:8080/api/v1/events/s/${shortLink}`, { cache: 'no-store' })
         if (!res.ok) throw new Error("Event not found")
         const data = await res.json()
+
+        console.log("ДАННЫЕ ИВЕНТА С БЭКА:", data);
         
         if (data.tiers) {
           const usedTierIds = Array.from(new Set((data.seats || []).map((s: any) => String(s.tierId)).filter(Boolean)));
@@ -412,6 +443,7 @@ const handleCheckout = async () => {
         });
       }
 
+      // 1. Создаем заказ в базе
       const orderPayload = {
         eventId: event.id,
         customerName: `${buyerInfo.firstName} ${buyerInfo.lastName}`,
@@ -428,68 +460,87 @@ const handleCheckout = async () => {
         body: JSON.stringify(orderPayload)
       });
 
+      // --- УМНАЯ ОБРАБОТКА ОШИБОК С БЭКЕНДА ---
       if (!res.ok) {
-        let errorText = "Sifariş yaradılarkən xəta baş verdi.";
+        let errorMessage = "Sifariş yaradılarkən xəta baş verdi.";
         try {
-          const errData = await res.json();
-          errorText = errData.message || errorText;
-        } catch (e) {}
-        throw new Error(errorText);
+          const errorData = await res.json();
+          // Берем красивое сообщение от твоего Java-бэкенда
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // Игнорируем, если бэк вернул не JSON
+        }
+        throw new Error(errorMessage);
       }
+      // ---------------------------------------
 
       const createdOrder = await res.json();
+
+      if (!res.ok) throw new Error("Sifariş yaradılarkən xəta baş verdi.");
       const backendTickets = createdOrder.tickets || [];
+
+      // 2. ПЕРЕДАЕМ ДАННЫЕ В СКРЫТЫЙ HTML-БЛОК ДЛЯ РЕНДЕРА
+      const preparedTickets = ticketsToGenerate.map((tData) => {
+        const matched = backendTickets.find((t: any) => t.seatId === tData.seatKey);
+        return {
+          ...tData,
+          qrData: matched ? matched.qrCode : `${event.shortLink}-${tData.seatKey}`
+        }
+      });
+
+      // Закидываем в стейт, чтобы React отрендерил наши красивые скрытые билеты
+      setTicketsToRender(preparedTickets);
+
+      // Ждем 1 секунду, чтобы React 100% успел отрисовать скрытые блоки в DOM
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 3. ФОТКАЕМ НАШИ ИДЕАЛЬНЫЕ БЛОКИ (БЕЗ ОШИБОК ЦВЕТА)
       const { jsPDF } = await import("jspdf");
+      const design = event.ticketDesign || TICKET_TEMPLATES.classicDark;
+      const pdf = new jsPDF('p', 'mm', [90, 160]);
 
-      for (const tData of ticketsToGenerate) {
-        const ticketType = tData.tier?.name || "Standard";
-        const design = event.ticketDesign || { bgColor: "#09090b", elements: [] };
-        const matchedBackendTicket = backendTickets.find((t: any) => t.seatId === tData.seatKey);
-        const realQrCodeData = matchedBackendTicket ? matchedBackendTicket.qrCode : `${event.shortLink}-${tData.seatKey}`;
-
-        const canvas = document.createElement("canvas");
-        canvas.width = 400; canvas.height = 800;
-        const ctx = canvas.getContext("2d");
-
-        if (ctx) {
-          ctx.fillStyle = design.bgColor || "#09090b";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          const elements = design.elements && design.elements.length > 0 ? design.elements : [
-            { type: 'text', x: 24, y: 100, content: '{{Event_Name}}', color: '#ffffff', fontSize: 32, fontWeight: 'bold' },
-            { type: 'text', x: 24, y: 150, content: '{{Event_Date}}', color: '#a1a1aa', fontSize: 14 },
-            { type: 'text', x: 24, y: 220, content: '{{Guest_Name}}', color: '#ffffff', fontSize: 24, fontWeight: 'bold' },
-            { type: 'text', x: 24, y: 260, content: '{{Ticket_Type}} • {{Seat_Info}}', color: '#3b82f6', fontSize: 16, fontWeight: 'bold' },
-            { type: 'qr', x: 125, y: 500, fontSize: 150 }
-          ];
-
-          for (const el of elements) {
-            if (el.type === "text") {
-              let text = el.content || "";
-              text = text.replace(/{{Event_Name}}/gi, event.title || "");
-              text = text.replace(/{{Event_Date}}/gi, event.eventDate || "");
-              text = text.replace(/{{Location}}/gi, event.isPhysical ? (event.venueName || event.address) : "Online Event");
-              text = text.replace(/{{Guest_Name}}/gi, `${buyerInfo.firstName} ${buyerInfo.lastName}`);
-              text = text.replace(/{{Ticket_Type}}/gi, ticketType);
-              text = text.replace(/{{Seat_Info}}/gi, tData.seatLabel);
-              ctx.fillStyle = el.color || "#ffffff";
-              ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 16}px Arial`;
-              ctx.textBaseline = "top";
-              ctx.fillText(text, el.x, el.y);
-            } else if (el.type === "qr") {
-              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${el.fontSize}x${el.fontSize}&data=${encodeURIComponent(realQrCodeData)}`;
-              const qrImg = new Image(); qrImg.crossOrigin = "anonymous"; qrImg.src = qrUrl;
-              await new Promise((resolve) => {
-                qrImg.onload = () => { ctx.drawImage(qrImg, el.x, el.y, el.fontSize, el.fontSize); resolve(true); };
-                qrImg.onerror = () => resolve(false);
-              });
-            }
-          }
-          const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [400, 800] });
-          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 400, 800);
-          pdf.save(`${event.title}_Bilet.pdf`);
+      for (let i = 0; i < preparedTickets.length; i++) {
+        const el = document.getElementById(`render-ticket-${i}`);
+        if (el) {
+          // toPng идеально понимает современные CSS цвета и SVG (QR-коды)
+          const dataUrl = await toPng(el, {
+            pixelRatio: 2, 
+            backgroundColor: design.bgColor || '#09090b',
+          });
+          
+          if (i > 0) pdf.addPage();
+          pdf.addImage(dataUrl, 'PNG', 0, 0, 90, 160);
         }
       }
+
+      // 4. СКАЧИВАЕМ ИДЕАЛЬНЫЙ PDF
+      // 1. Скачиваем PDF пользователю (как и раньше)
+      pdf.save(`${event.title.replace(/\s+/g, '_')}_Biletler.pdf`);
+
+      // 2. ОТПРАВЛЯЕМ НА ПОЧТУ
+      // Превращаем PDF в Blob (бинарный объект)
+      const pdfBlob = pdf.output('blob');
+      
+      const emailFormData = new FormData();
+      emailFormData.append("file", pdfBlob, "ticket.pdf");
+      emailFormData.append("email", buyerInfo.email);
+      emailFormData.append("buyerName", buyerInfo.firstName); // Имя
+      emailFormData.append("eventName", event.title);
+      emailFormData.append("eventDate", `${event.eventDate} ${event.startTime}`);
+      emailFormData.append("location", event.isPhysical ? event.venueName : "Online Event");
+
+      // Отправляем на бэкенд "в фоне" (не заставляем юзера ждать)
+      fetch("http://localhost:8080/api/v1/email/send-ticket", {
+        method: "POST",
+        body: emailFormData,
+        // Токен не нужен, так как это публичная покупка
+      }).then(response => {
+        if (response.ok) console.log("Bilet e-poçta göndərildi!");
+      }).catch(err => console.error("Email error:", err));
+
+      // 3. Идем на экран успеха
       setCheckoutStep(3);
+
     } catch (err: any) {
       showToast(err.message || "Xəta baş verdi.", 'error');
     } finally {
@@ -509,7 +560,7 @@ const handleCheckout = async () => {
   const minPrice = event.tiers?.length > 0 ? Math.min(...event.tiers.map((t: any) => t.price)) : 0
   const coverUrl = event.coverImageUrl ? (event.coverImageUrl.startsWith('http') ? event.coverImageUrl : `http://localhost:8080${event.coverImageUrl}`) : DEFAULT_COVER;
 
-  return (
+return (
     <div className="min-h-screen bg-background relative selection:bg-primary/20 pb-12">
       <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center px-6 py-4 bg-background/80 backdrop-blur-xl border-b border-white/5 shadow-sm">
         <div className="flex items-center gap-2">
@@ -703,6 +754,84 @@ const handleCheckout = async () => {
           <span className="text-sm font-bold">{toast.message}</span>
         </div>
       )}
+
+      {/* --- ИСПРАВЛЕННЫЙ СКРЫТЫЙ БЛОК: ЛОГО ВНИЗУ --- */}
+      <div className="absolute -left-[9999px] top-0 opacity-0 pointer-events-none" aria-hidden="true">
+        {ticketsToRender && ticketsToRender.length > 0 && ticketsToRender.map((tData: any, index: number) => {
+          const currentDesign = event?.ticketDesign || TICKET_TEMPLATES?.classicDark;
+          return (
+            <div 
+              key={index} 
+              id={`render-ticket-${index}`} 
+              className="relative overflow-hidden"
+              style={{ width: 360, height: 640, backgroundColor: currentDesign?.bgColor || "#000" }}
+            >
+              {/* 1. Фон (если есть) */}
+              {currentDesign?.bgImage && (
+                <div className="absolute inset-0 z-0 flex items-center justify-center">
+                  <img 
+                    src={currentDesign.bgImage} 
+                    crossOrigin="anonymous" 
+                    className="min-w-full min-h-full object-cover"
+                    style={{ transform: `scale(${currentDesign.bgScale! / 100}) translate(${currentDesign.bgOffsetX}px, ${currentDesign.bgOffsetY}px)` }}
+                    alt="bg"
+                  />
+                </div>
+              )}
+              {currentDesign?.bgImage && (<div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(0,0,0,${currentDesign.bgOverlay})` }} />)}
+
+              {/* 2. Основные элементы билета (ОТ САМОГО ВЕРХА, pt-0) */}
+              <div className="absolute inset-0 z-20 pt-0">
+                {currentDesign?.elements?.map((el: any) => (
+                  <div 
+                    key={el.id} 
+                    className="absolute flex flex-col"
+                    style={{ 
+                      left: el.x, 
+                      top: el.y, // Координата Y теперь чистая, без смещения вниз
+                      color: el.color, 
+                      fontSize: el.fontSize, 
+                      fontWeight: el.fontWeight, 
+                      fontFamily: el.fontFamily, 
+                      width: el.width || (el.type === 'qr' ? el.fontSize : 'auto'), 
+                      height: el.height || (el.type === 'qr' ? el.fontSize : 'auto'),
+                      textAlign: el.textAlign || 'left' 
+                    }}
+                  >
+                    {el.type === 'text' && (<span className="leading-tight break-words px-1">{fillTags(el.content, tData)}</span>)}
+                    
+                    {/* ПРОЗРАЧНЫЙ QR-КОД БЕЗ БЕЛОГО ФОНА */}
+                    {el.type === 'qr' && (
+                      <div className="w-full h-full flex items-center justify-center p-3">
+                        <QRCodeSVG 
+                          value={tData?.qrData || "TEST_QR_CODE"} 
+                          size={el.width ? el.width - 24 : el.fontSize - 24} 
+                          level="H"
+                          bgColor="transparent" 
+                          fgColor={el.color || "#ffffff"}
+                        />
+                      </div>
+                    )}
+                    
+                    {el.type === 'image' && el.src && (<img src={el.src} alt="logo" crossOrigin="anonymous" className="w-full h-full object-contain" />)}
+                  </div>
+                ))}
+              </div>
+
+              {/* 3. ОБЯЗАТЕЛЬНОЕ ЛОГО ETICKSYSTEM: ПЕРЕМЕЩЕНО В ФУТЕР */}
+              <div className="absolute bottom-0 left-0 right-0 h-[50px] bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 border-t border-white/5 shadow-inner">
+                <div className="flex items-center gap-2.5 opacity-60">
+                  <Ticket className="h-5 w-5 text-white/90" />
+                  <span className="font-medium tracking-[0.3em] text-[11px] mt-0.5 uppercase text-white/90">eticksystem.com</span>
+                </div>
+              </div>
+
+            </div>
+          )
+        })}
+      </div>
+      {/* --- КОНЕЦ ИСПРАВЛЕННОГО БЛОКА --- */}
+
     </div>
   )
 }

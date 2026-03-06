@@ -42,6 +42,12 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/events/s/**").permitAll()
 
+                        .requestMatchers("/api/v1/profile/**").authenticated()
+
+                        .requestMatchers("/api/v1/tickets/generate-pdf").permitAll()
+
+                        .requestMatchers("api/v1/email/send-ticket").permitAll()
+
                         // СНАЧАЛА ОТКРЫВАЕМ ПУБЛИЧНЫЙ ЭНДПОИНТ
                         .requestMatchers("/api/v1/promocodes/validate").permitAll()
 
