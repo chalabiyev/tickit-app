@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 @Data
 public class UpdateEventRequest {
@@ -21,4 +22,6 @@ public class UpdateEventRequest {
     private Integer   maxTicketsPerOrder;
     private String    coverImageUrl;
     private String    status;
+    private List<FaqItem> faq;
+
 }

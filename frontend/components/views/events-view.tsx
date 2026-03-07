@@ -14,7 +14,6 @@ import { AdminBookingModal } from "./AdminBookingModal"
 export type { EventData } from "./AdminBookingModal"
 import type { EventData } from "./AdminBookingModal"
 
-// ── Local display type (superset of EventData for the card list) ──────────
 type EventStatus = "active" | "pending" | "past"
 
 const API_BASE  = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"
@@ -22,7 +21,6 @@ const APP_URL   = process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefin
 const TOKEN_KEY = "eticksystem_token"
 const DEFAULT_IMG = "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&h=200&fit=crop"
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 function resolveImg(url?: string): string {
   if (!url) return DEFAULT_IMG
   return url.startsWith("http") ? url : `${API_BASE}${url.startsWith("/") ? "" : "/"}${url}`
@@ -39,13 +37,47 @@ function getErrKey(err: unknown, res?: Response): string {
   return "errUnknown"
 }
 
+// ── Relative date label ───────────────────────────────────────────────────
+function getRelativeDateLabel(dateStr: string, locale: string): string {
+  if (!dateStr) return ""
+  const eventDay = new Date(dateStr)
+  const today    = new Date()
+  eventDay.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((eventDay.getTime() - today.getTime()) / 86_400_000)
+
+  if (diffDays < 0) {
+    const abs = Math.abs(diffDays)
+    if (locale === "ru") return `${abs} дн. назад`
+    if (locale === "tr") return `${abs} gün önce`
+    if (locale === "en") return `${abs} day${abs !== 1 ? "s" : ""} ago`
+    return `${abs} gün əvvəl`
+  }
+  if (diffDays === 0) {
+    if (locale === "ru") return "Сегодня"
+    if (locale === "tr") return "Bugün"
+    if (locale === "en") return "Today"
+    return "Bu gün"
+  }
+  if (diffDays === 1) {
+    if (locale === "ru") return "Завтра"
+    if (locale === "tr") return "Yarın"
+    if (locale === "en") return "Tomorrow"
+    return "Sabah"
+  }
+  if (locale === "ru") return `Через ${diffDays} дн.`
+  if (locale === "tr") return `${diffDays} gün kaldı`
+  if (locale === "en") return `In ${diffDays} days`
+  return `${diffDays} gün qalıb`
+}
+
 const STATUS_CFG = {
   active:  { cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
   pending: { cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20" },
   past:    { cls: "bg-secondary text-muted-foreground border-border/40" },
 } as const
 
-// ── Event Card ────────────────────────────────────────────────────────────────
+// ── Event Card ────────────────────────────────────────────────────────────
 function EventCard({ event, onEdit, onManage, onAdminBook }: {
   event: EventData
   onEdit: (e: EventData) => void
@@ -54,7 +86,9 @@ function EventCard({ event, onEdit, onManage, onAdminBook }: {
 }) {
   const { locale } = useLocale()
   const [copied, setCopied] = useState(false)
-  const pct = (event.total ?? 0) > 0 ? Math.round(((event.sold ?? 0) / (event.total ?? 1)) * 100) : 0
+  const pct = (event.total ?? 0) > 0
+    ? Math.round(((event.sold ?? 0) / (event.total ?? 1)) * 100)
+    : 0
 
   const handleCopyLink = () => {
     if (!event.shortLink) return
@@ -69,8 +103,10 @@ function EventCard({ event, onEdit, onManage, onAdminBook }: {
     event.status === "past"    ? t(locale, "past") :
                                  t(locale, "active")
 
+  const dateStr      = event.date ?? event.eventDate ?? ""
+  const relativeDateLabel = getRelativeDateLabel(dateStr, locale)
+
   return (
-    // isolation: isolate — фикс для Safari: border-radius + overflow + transform
     <div
       className="group relative flex flex-col rounded-2xl border border-border/50 bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/25"
       style={{ isolation: "isolate" }}
@@ -87,7 +123,7 @@ function EventCard({ event, onEdit, onManage, onAdminBook }: {
         <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/20 to-transparent" />
         <span className={cn(
           "absolute right-3 top-3 text-[10px] font-bold px-2.5 py-1 rounded-full border",
-          STATUS_CFG[event.status ?? "active"].cls
+          STATUS_CFG[event.status ?? "active"].cls,
         )}>
           {statusLabel}
         </span>
@@ -96,22 +132,26 @@ function EventCard({ event, onEdit, onManage, onAdminBook }: {
       {/* Body */}
       <div className="flex flex-col flex-1 gap-3 p-4">
         <div>
-          <h3 className="text-sm font-bold text-foreground line-clamp-1 mb-1.5">{event.name ?? event.title}</h3>
-          <div className="space-y-1">
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <CalendarDays className="h-3 w-3 shrink-0" />
-              <span className="truncate">{event.date ?? event.eventDate}</span>
+          {/* Bigger title */}
+          <h3 className="text-[15px] font-bold text-foreground line-clamp-1 mb-2">
+            {event.name ?? event.title}
+          </h3>
+          <div className="space-y-1.5">
+            {/* Relative date with accent colour */}
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-primary/80">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{relativeDateLabel}</span>
             </p>
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <MapPin className="h-3 w-3 shrink-0" />
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{event.location ?? event.venueName ?? event.address}</span>
             </p>
           </div>
         </div>
 
-        {/* Capacity */}
+        {/* Capacity bar */}
         <div className="mt-auto space-y-1.5">
-          <div className="flex justify-between text-[10px] font-semibold">
+          <div className="flex justify-between text-[11px] font-semibold">
             <span className="text-muted-foreground uppercase tracking-wide">{t(locale, "ticketCapacity")}</span>
             <span className="text-foreground tabular-nums">{event.sold ?? 0} / {event.total ?? 0}</span>
           </div>
@@ -123,30 +163,39 @@ function EventCard({ event, onEdit, onManage, onAdminBook }: {
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Action buttons */}
         <div className="grid grid-cols-2 gap-1.5 pt-3 border-t border-border/40">
-          <button onClick={() => onEdit(event)} className="flex items-center justify-center gap-1.5 h-8 rounded-lg text-[11px] font-semibold bg-secondary/60 hover:bg-primary hover:text-primary-foreground text-foreground transition-all">
-            <Pencil className="h-3 w-3" /> {t(locale, "edit")}
+          <button
+            onClick={() => onEdit(event)}
+            className="flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold bg-secondary/60 hover:bg-primary hover:text-primary-foreground text-foreground transition-all"
+          >
+            <Pencil className="h-3.5 w-3.5" /> {t(locale, "edit")}
           </button>
-          <button onClick={() => onManage(event)} className="flex items-center justify-center gap-1.5 h-8 rounded-lg text-[11px] font-semibold bg-secondary/60 hover:bg-primary hover:text-primary-foreground text-foreground transition-all">
-            <BarChart3 className="h-3 w-3" /> {t(locale, "statistics")}
+          <button
+            onClick={() => onManage(event)}
+            className="flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold bg-secondary/60 hover:bg-primary hover:text-primary-foreground text-foreground transition-all"
+          >
+            <BarChart3 className="h-3.5 w-3.5" /> {t(locale, "statistics")}
           </button>
-          <button onClick={() => onAdminBook(event)} className="col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[11px] font-semibold border border-border/50 hover:border-primary/40 hover:bg-secondary/60 text-foreground transition-all">
-            <UserPlus className="h-3 w-3" /> {t(locale, "adminTicket")}
+          <button
+            onClick={() => onAdminBook(event)}
+            className="col-span-2 flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold border border-border/50 hover:border-primary/40 hover:bg-secondary/60 text-foreground transition-all"
+          >
+            <UserPlus className="h-3.5 w-3.5" /> {t(locale, "adminTicket")}
           </button>
           <button
             onClick={handleCopyLink}
             disabled={!event.shortLink}
             className={cn(
-              "col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[11px] font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+              "col-span-2 flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed",
               copied
                 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                : "border-border/50 hover:border-primary/40 hover:bg-secondary/60 text-foreground"
+                : "border-border/50 hover:border-primary/40 hover:bg-secondary/60 text-foreground",
             )}
           >
             {copied
-              ? <><Check className="h-3 w-3" /> {t(locale, "linkCopied")}</>
-              : <><Link2 className="h-3 w-3" /> {t(locale, "copyLink")}</>
+              ? <><Check className="h-3.5 w-3.5" /> {t(locale, "linkCopied")}</>
+              : <><Link2 className="h-3.5 w-3.5" /> {t(locale, "copyLink")}</>
             }
           </button>
         </div>
@@ -155,7 +204,7 @@ function EventCard({ event, onEdit, onManage, onAdminBook }: {
   )
 }
 
-// ── Event Grid ────────────────────────────────────────────────────────────────
+// ── Event Grid ────────────────────────────────────────────────────────────
 function EventGrid({ events, onEdit, onManage, onAdminBook, emptyKey }: {
   events: EventData[]
   onEdit: (e: EventData) => void
@@ -180,7 +229,7 @@ function EventGrid({ events, onEdit, onManage, onAdminBook, emptyKey }: {
   )
 }
 
-// ── Main View ─────────────────────────────────────────────────────────────────
+// ── Main View ─────────────────────────────────────────────────────────────
 interface EventsViewProps {
   onCreateEvent: () => void
   onEditEvent: (event: EventData) => void
@@ -189,10 +238,10 @@ interface EventsViewProps {
 
 export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: EventsViewProps) {
   const { locale } = useLocale()
-  const [events,         setEvents]        = useState<EventData[]>([])
-  const [loading,        setLoading]       = useState(true)
-  const [errorKey,       setErrorKey]      = useState<string | null>(null)
-  const [adminBookEvent, setAdminBookEvent]= useState<EventData | null>(null)
+  const [events,         setEvents]         = useState<EventData[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [errorKey,       setErrorKey]       = useState<string | null>(null)
+  const [adminBookEvent, setAdminBookEvent] = useState<EventData | null>(null)
 
   const fetchMyEvents = useCallback(async () => {
     setLoading(true)
@@ -215,7 +264,7 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
         const evDate = new Date(ev.eventDate as string)
         let status: EventStatus = "active"
         if (ev.status === "PENDING") status = "pending"
-        else if (evDate < today) status = "past"
+        else if (evDate < today)     status = "past"
         return {
           id:                String(ev.id),
           name:              String(ev.title ?? ""),
@@ -274,9 +323,9 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
   const past    = events.filter((e) => e.status === "past")
 
   const tabs = [
-    { value: "active",  labelKey: "tabActive",  count: active.length,  events: active,  emptyKey: "emptyActive" },
+    { value: "active",  labelKey: "tabActive",  count: active.length,  events: active,  emptyKey: "emptyActive"  },
     { value: "pending", labelKey: "tabPending", count: pending.length, events: pending, emptyKey: "emptyPending" },
-    { value: "past",    labelKey: "tabPast",    count: past.length,    events: past,    emptyKey: "emptyPast" },
+    { value: "past",    labelKey: "tabPast",    count: past.length,    events: past,    emptyKey: "emptyPast"    },
   ]
 
   return (
@@ -303,7 +352,10 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
         <Tabs defaultValue="active">
           <TabsList className="mb-5 h-auto gap-1 bg-secondary/40 p-1 rounded-xl">
             {tabs.map(({ value, labelKey, count }) => (
-              <TabsTrigger key={value} value={value} className="gap-2 rounded-lg py-2 px-4 font-semibold text-sm data-[state=active]:shadow-sm">
+              <TabsTrigger
+                key={value} value={value}
+                className="gap-2 rounded-lg py-2 px-4 font-semibold text-sm data-[state=active]:shadow-sm"
+              >
                 {t(locale, labelKey)}
                 <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-md bg-background/80 px-1.5 text-[10px] font-bold text-foreground shadow-sm">
                   {count}
@@ -313,7 +365,13 @@ export function EventsView({ onCreateEvent, onEditEvent, onManageEvent }: Events
           </TabsList>
           {tabs.map(({ value, events: tabEvs, emptyKey }) => (
             <TabsContent key={value} value={value} className="focus-visible:outline-none mt-0">
-              <EventGrid events={tabEvs} onEdit={onEditEvent} onManage={onManageEvent} onAdminBook={(ev) => setAdminBookEvent(ev)} emptyKey={emptyKey} />
+              <EventGrid
+                events={tabEvs}
+                onEdit={onEditEvent}
+                onManage={onManageEvent}
+                onAdminBook={(ev) => setAdminBookEvent(ev)}
+                emptyKey={emptyKey}
+              />
             </TabsContent>
           ))}
         </Tabs>

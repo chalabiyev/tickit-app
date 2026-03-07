@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 const GRID = 32
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface Tier { id: string | number; name: string; color: string }
+interface Tier { id: string | number; name: string; color: string; quantity?: number }
 
 export interface SeatCell { r: number; c: number; tierId: string | null }
 export type SeatMap = Record<string, SeatCell>
@@ -144,15 +144,30 @@ export function SeatMapGrid({
   }
 
   const applyTool = useCallback((r: number, c: number) => {
-    const id = `${r}-${c}`
-    setSeatMap((prev) => {
+  const id = `${r}-${c}`
+  setSeatMap((prev) => {
       const next = { ...prev }
-      if      (activeTool === "eraser") delete next[id]
-      else if (activeTool === "add")    { if (!next[id]) next[id] = { r, c, tierId: null } }
-      else if (activeTool !== "pan")    { if (next[id]) next[id] = { ...next[id], tierId: activeTool } }
+      if (activeTool === "eraser") {
+        delete next[id]
+      } else if (activeTool === "add") {
+        if (!next[id]) next[id] = { r, c, tierId: null }
+      } else if (activeTool !== "pan") {
+        // activeTool is a tierId — check per-tier capacity limit
+        const tier = tiers.find((ti) => String(ti.id) === activeTool)
+        if (tier && next[id]) {
+          const tierLimit = Number((tier as { quantity?: number }).quantity ?? 0)
+          if (tierLimit > 0) {
+            const alreadyAssigned = Object.values(next).filter(
+              (s) => String(s.tierId) === activeTool && `${s.r}-${s.c}` !== id
+            ).length
+            if (alreadyAssigned >= tierLimit) return prev // block — limit reached
+          }
+          next[id] = { ...next[id], tierId: activeTool }
+        }
+      }
       return next
     })
-  }, [activeTool, setSeatMap])
+  }, [activeTool, setSeatMap, tiers])
 
   const onPointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement

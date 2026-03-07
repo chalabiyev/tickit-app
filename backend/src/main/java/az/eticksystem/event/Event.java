@@ -1,6 +1,7 @@
 package az.eticksystem.event;
 
 import az.eticksystem.event.dto.BuyerQuestion;
+import az.eticksystem.event.dto.FaqItem;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -40,6 +41,9 @@ public class Event {
     private Boolean isPhysical;
     private String  venueName;
     private String  address;
+    /** GPS coordinates — used for Google Maps link on the public page */
+    private Double  lat;
+    private Double  lng;
 
     private Boolean isPrivate;
     private String  coverImageUrl;
@@ -52,7 +56,6 @@ public class Event {
     @Builder.Default
     private List<Seat> seats = new ArrayList<>();
 
-    // Системные поля
     private Integer    totalCapacity;
     private BigDecimal platformFee;
     private String     shortLink;
@@ -83,7 +86,11 @@ public class Event {
     @Builder.Default
     private List<String> adminSeats = new ArrayList<>();
 
-    // Поля не сохраняются в MongoDB — заполняются в сервисе перед отдачей на фронт
+    /** FAQ — questions and answers shown as accordion on the public event page */
+    @Builder.Default
+    private List<FaqItem> faq = new ArrayList<>();
+
+    // Not persisted — populated in service before returning to frontend
     @Transient
     private String organizerCompanyName;
 

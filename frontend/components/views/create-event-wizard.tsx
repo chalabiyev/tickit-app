@@ -14,6 +14,7 @@ import {
   ArrowLeft, ArrowRight, Check, MapPin, Upload, Plus, Trash2,
   CreditCard, Monitor, Lock, Globe, Clock,
   CheckCircle2, AlertCircle, Video, Ticket, X, Loader2,
+  HelpCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Cropper from "react-easy-crop"
@@ -26,12 +27,54 @@ import { EventSummaryStep }                       from "./create-event/EventSumm
 import { SuccessStep }                            from "./create-event/SuccessStep"
 import { LocationPicker }                         from "./create-event/LocationPicker"
 
+// ── Custom time picker — two number inputs, Safari-safe ───────────────────
+function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parts = value ? value.split(":") : ["", ""]
+  const hh = parts[0] ?? ""
+  const mm = parts[1] ?? ""
+
+  const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+  const handleH = (raw: string) => {
+    const n = raw === "" ? "" : String(clamp(parseInt(raw, 10), 0, 23)).padStart(2, "0")
+    onChange(`${n}:${mm || "00"}`)
+  }
+  const handleM = (raw: string) => {
+    const n = raw === "" ? "" : String(clamp(parseInt(raw, 10), 0, 59)).padStart(2, "0")
+    onChange(`${hh || "00"}:${n}`)
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 h-11 bg-background border border-input rounded-md px-3 shadow-sm w-fit">
+      <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+      <input
+        type="number"
+        min={0} max={23}
+        value={hh}
+        placeholder="00"
+        onChange={(e) => handleH(e.target.value)}
+        className="w-9 bg-transparent text-sm font-mono text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <span className="text-muted-foreground font-bold select-none">:</span>
+      <input
+        type="number"
+        min={0} max={59}
+        value={mm}
+        placeholder="00"
+        onChange={(e) => handleM(e.target.value)}
+        className="w-9 bg-transparent text-sm font-mono text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+    </div>
+  )
+}
+
 const API_BASE  = process.env.NEXT_PUBLIC_API_URL  ?? "http://localhost:8080"
 const APP_URL   = process.env.NEXT_PUBLIC_APP_URL  ?? (typeof window !== "undefined" ? window.location.origin : "")
 const TOKEN_KEY = "eticksystem_token"
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const STEPS       = ["mainInfo", "ticketTypes", "places", "buyerQuestions", "ticketDesign", "preview", "payment", "success"] as const
+// FAQ step inserted between buyerQuestions (idx 3) and ticketDesign (idx 4)
+const STEPS = ["mainInfo", "ticketTypes", "places", "buyerQuestions", "faq", "ticketDesign", "preview", "payment", "success"] as const
 const CATEGORIES  = ["concert", "conference", "workshop", "sports", "theater", "exhibition", "other"] as const
 const AGE_LIMITS  = ["0+", "3+", "6+", "12+", "16+", "18+", "21+"] as const
 export const TICKET_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"]
@@ -51,6 +94,12 @@ export interface TicketTier {
   quantity: number
   color: string
   type: "paid" | "free"
+}
+
+export interface FaqItem {
+  id: string
+  question: string
+  answer: string
 }
 
 // ── Clipboard (HTTP fallback) ──────────────────────────────────────────────
@@ -155,7 +204,10 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
   // Step 3: buyer questions
   const [buyerQuestions, setBuyerQuestions] = useState<BuyerQuestion[]>([])
 
-  // Step 4: ticket design
+  // Step 4: FAQ
+  const [faqItems, setFaqItems] = useState<FaqItem[]>([])
+
+  // Step 5: ticket design
   const [ticketDesign, setTicketDesign] = useState<TicketDesign>({
     bgColor: "#09090b", bgImage: null, bgOverlay: 0, bgScale: 100, bgOffsetX: 0, bgOffsetY: 0,
     elements: [
@@ -167,13 +219,23 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
     ],
   })
 
-  // Step 7: result
+  // Step 8: result
   const [generatedLink, setGeneratedLink] = useState("")
 
   // Derived
-  const derivedCapacity = tiers.reduce((s, t) => s + (Number(t.quantity) || 0), 0)
-  const ticketRevenue   = tiers.reduce((s, t) => s + (Number(t.price) || 0) * (Number(t.quantity) || 0), 0)
+  const derivedCapacity = tiers.reduce((s, ti) => s + (Number(ti.quantity) || 0), 0)
+  const ticketRevenue   = tiers.reduce((s, ti) => s + (Number(ti.price) || 0) * (Number(ti.quantity) || 0), 0)
   const platformFee     = calculatePlatformFee(derivedCapacity)
+
+  // ── FAQ helpers ───────────────────────────────────────────────────────────
+  const addFaq = () =>
+    setFaqItems((prev) => [...prev, { id: `faq-${Date.now()}`, question: "", answer: "" }])
+
+  const removeFaq = (id: string) =>
+    setFaqItems((prev) => prev.filter((f) => f.id !== id))
+
+  const updateFaq = (id: string, field: "question" | "answer", value: string) =>
+    setFaqItems((prev) => prev.map((f) => f.id === id ? { ...f, [field]: value } : f))
 
   // ── Tier helpers ──────────────────────────────────────────────────────────
   const addTier = () =>
@@ -182,7 +244,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       color: TICKET_COLORS[prev.length % TICKET_COLORS.length], type: "paid",
     }])
 
-  const removeTier = (id: string | number) => setTiers((prev) => prev.filter((t) => t.id !== id))
+  const removeTier = (id: string | number) => setTiers((prev) => prev.filter((ti) => ti.id !== id))
 
   const updateTier = (id: string | number, field: keyof TicketTier, value: string | number) =>
     setTiers((prev) => prev.map((tier) => {
@@ -242,6 +304,11 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       if (category === "other" && !customCategory.trim())
         return setStepError(t(locale, "errCustomCatReq") || "Kateqoriyanı dəqiqləşdirin.")
       if (!eventDate)            return setStepError(t(locale, "errDateReq")   || "Tarix seçin.")
+      if (eventDate) {
+        const _sel = new Date(eventDate)
+        const _tod = new Date(); _tod.setHours(0, 0, 0, 0)
+        if (_sel < _tod) return setStepError(t(locale, "errPastDate") || "Keçmiş tarix seçmək olmaz.")
+      }
       if (!startTime)            return setStepError(t(locale, "errStartReq")  || "Başlama vaxtı seçin.")
       if (!endTime)              return setStepError(t(locale, "errEndReq")    || "Bitmə vaxtı seçin.")
       if (isPhysical) {
@@ -278,11 +345,19 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
         )
     }
 
+    // Step 4 FAQ validation — questions with empty fields are skipped but warn
+    if (currentStep === 4) {
+      const incomplete = faqItems.filter((f) => !f.question.trim() || !f.answer.trim())
+      if (incomplete.length > 0)
+        return setStepError("Bütün FAQ sahələrini doldurun və ya boş olanları silin.")
+    }
+
     setCurrentStep((s) => s + 1)
   }
 
   const handleBackStep = () => {
     setStepError(""); setSubmitError("")
+    // If online event, skip seats step going back from buyerQuestions
     setCurrentStep((s) => (s === 3 && !isPhysical) ? 1 : s - 1)
   }
 
@@ -315,6 +390,10 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       ticketDesign,
       buyerQuestions,
       maxTicketsPerOrder,
+      // FAQ — send only complete items
+      faq: faqItems
+        .filter((f) => f.question.trim() && f.answer.trim())
+        .map(({ question, answer }) => ({ question, answer })),
     }
 
     try {
@@ -329,7 +408,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       }
       const data = await res.json()
       setGeneratedLink(`${APP_URL}/e/${data.shortLink}`)
-      setCurrentStep(7)
+      setCurrentStep(8)
     } catch (err) {
       setSubmitError((err as Error).message)
     } finally {
@@ -342,7 +421,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
     <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full relative">
 
       {/* Header + step indicator */}
-      {currentStep < 7 && (
+      {currentStep < 8 && (
         <div className="flex flex-col gap-6 w-full">
           <div className="flex items-center gap-4 sm:gap-6">
             <Button variant="outline" size="sm" className="gap-2 h-10 px-4 rounded-xl border-border/60 shadow-sm text-muted-foreground hover:text-foreground shrink-0" onClick={onBack}>
@@ -401,21 +480,26 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
 
                 {/* Date & Time */}
                 <div className="flex flex-col gap-5">
-                  <h3 className="text-base font-bold text-foreground">{t(locale, "dateTime") || "Tarix və Zaman"}</h3>
+                  <h3 className="text-base font-bold text-foreground">{t(locale, "dateTime") || "Tarix və vaxt"}</h3>
                   <div className="flex flex-wrap gap-5">
-                    {[
-                      { label: t(locale, "date")      || "Tarix",    type: "date", val: eventDate,  set: setEventDate },
-                      { label: t(locale, "startTime") || "Başlama",  type: "time", val: startTime,  set: setStartTime },
-                      { label: t(locale, "endTime")   || "Bitmə",    type: "time", val: endTime,    set: setEndTime },
-                    ].map(({ label, type, val, set }) => (
-                      <div key={label} className="flex flex-col gap-2.5 flex-1 min-w-[140px] max-w-[220px]">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label} <span className="text-destructive">*</span></Label>
-                        <div className="relative">
-                          {type === "time" && <Clock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />}
-                          <Input type={type} value={val} onChange={(e) => set(e.target.value)} className={cn("h-11", type === "time" && "pl-10")} style={{ minHeight: "44px" }} />
-                        </div>
-                      </div>
-                    ))}
+                    <div className="flex flex-col gap-2.5 flex-1 min-w-[140px] max-w-[220px]">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        {t(locale, "date") || "Tarix"} <span className="text-destructive">*</span>
+                      </Label>
+                      <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-11" />
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        {t(locale, "startTime") || "Başlanğıc vaxtı"} <span className="text-destructive">*</span>
+                      </Label>
+                      <TimeSelect value={startTime} onChange={setStartTime} />
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        {t(locale, "endTime") || "Bitmə vaxtı"} <span className="text-destructive">*</span>
+                      </Label>
+                      <TimeSelect value={endTime} onChange={setEndTime} />
+                    </div>
                   </div>
                 </div>
 
@@ -427,8 +511,8 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                     <Label className="text-base font-bold">{t(locale, "location") || "Məkan"}</Label>
                     <div className="flex flex-wrap items-center gap-3">
                       {[
-                        { val: true,  icon: <MapPin className="h-5 w-5" />,    label: t(locale, "physical") || "Fiziki" },
-                        { val: false, icon: <Monitor className="h-5 w-5" />,   label: t(locale, "online")   || "Onlayn" },
+                        { val: true,  icon: <MapPin className="h-5 w-5" />,  label: t(locale, "physical") || "Fiziki" },
+                        { val: false, icon: <Monitor className="h-5 w-5" />, label: t(locale, "online")   || "Onlayn" },
                       ].map(({ val, icon, label }) => (
                         <button
                           key={String(val)}
@@ -552,7 +636,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
                 <div className="flex items-center justify-between bg-primary/5 p-6 rounded-2xl border border-primary/10">
                   <div className="flex flex-col gap-1.5">
                     <h3 className="text-lg font-bold text-foreground">{t(locale, "ticketTypes") || "Bilet Növləri"}</h3>
-                    <p className="text-sm text-muted-foreground">{t(locale, "ticketTypesDesc") || "Vместимость вычисляется автоматически."}</p>
+                    <p className="text-sm text-muted-foreground">{t(locale, "ticketTypesDesc") || "Tutum avtomatik hesablanır."}</p>
                   </div>
                   <div className="flex flex-col items-end bg-background px-4 py-2 rounded-xl border shadow-sm">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{t(locale, "totalCapacity") || "Ümumi"}</span>
@@ -674,15 +758,102 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
               </div>
             )}
 
+            {/* ── Step 3: Buyer Questions ── */}
             {currentStep === 3 && <BuyerQuestionsStep questions={buyerQuestions} setQuestions={setBuyerQuestions} />}
+
+            {/* ── Step 4: FAQ ── */}
             {currentStep === 4 && (
+              <div className="flex flex-col gap-8 animate-in fade-in duration-300">
+                {/* Header */}
+                <div className="flex items-start gap-4 p-6 rounded-2xl bg-primary/5 border border-primary/10">
+                  <div className="p-3 bg-primary/10 rounded-xl shrink-0">
+                    <HelpCircle className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-lg font-bold text-foreground">FAQ</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {t(locale, "faqDesc") || "Tez-tez verilən sualları əlavə edin. Bunlar ictimai səhifədə accordion kimi göstəriləcək. İstəyə görədir."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div className="flex flex-col gap-4">
+                  {faqItems.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-12 rounded-2xl border-2 border-dashed border-border/50 text-muted-foreground gap-3">
+                      <HelpCircle className="w-10 h-10 opacity-30" />
+                      <p className="text-sm font-medium opacity-60">
+                        {t(locale, "faqEmpty") || "Hələ FAQ yoxdur. Aşağıdan əlavə edin."}
+                      </p>
+                    </div>
+                  )}
+
+                  {faqItems.map((item, idx) => (
+                    <Card key={item.id} className="border-border/60 bg-card shadow-sm">
+                      <CardContent className="p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary font-black text-xs shrink-0 mt-2.5">
+                            {idx + 1}
+                          </div>
+                          <div className="flex flex-col gap-3 flex-1">
+                            <div className="flex flex-col gap-1.5">
+                              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                {t(locale, "faqQuestion") || "Sual"} <span className="text-destructive">*</span>
+                              </Label>
+                              <Input
+                                className="h-11 font-medium text-base"
+                                placeholder={t(locale, "faqQuestionPlaceholder") || "Məs.: Bilet geri qaytarılır?"}
+                                value={item.question}
+                                onChange={(e) => updateFaq(item.id, "question", e.target.value)}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                {t(locale, "faqAnswer") || "Cavab"} <span className="text-destructive">*</span>
+                              </Label>
+                              <Textarea
+                                rows={3}
+                                className="resize-none text-base bg-background"
+                                placeholder={t(locale, "faqAnswerPlaceholder") || "Cavabı daxil edin..."}
+                                value={item.answer}
+                                onChange={(e) => updateFaq(item.id, "answer", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-9 w-9 text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0 mt-1.5 rounded-xl"
+                            onClick={() => removeFaq(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  <Button
+                    variant="outline"
+                    className="h-12 border-dashed border-2 hover:border-primary hover:bg-primary/5 gap-2 font-semibold mt-2"
+                    onClick={addFaq}
+                  >
+                    <Plus className="h-5 w-5" /> {t(locale, "addFaq") || "FAQ əlavə et"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Step 5: Ticket Design ── */}
+            {currentStep === 5 && (
               <TicketDesignEditor
                 design={ticketDesign} onChange={setTicketDesign}
                 eventDetails={{ title: eventTitle, date: eventDate, location: isPhysical ? (venueName || address) : "Online Event" }}
                 buyerQuestions={buyerQuestions}
               />
             )}
-            {currentStep === 5 && (
+
+            {/* ── Step 6: Preview ── */}
+            {currentStep === 6 && (
               <EventSummaryStep
                 eventDetails={{ title: eventTitle, date: eventDate, location: isPhysical ? (venueName || address) : "Online Event" }}
                 isPrivate={isPrivate} derivedCapacity={derivedCapacity} ticketRevenue={ticketRevenue}
@@ -690,8 +861,8 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
               />
             )}
 
-            {/* ── Step 6: Payment ── */}
-            {currentStep === 6 && (
+            {/* ── Step 7: Payment ── */}
+            {currentStep === 7 && (
               <div className="flex flex-col gap-10 lg:flex-row lg:gap-14 animate-in fade-in duration-300">
                 {/* Fee card */}
                 <div className="flex-1 flex flex-col gap-5">
@@ -765,8 +936,8 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
               </div>
             )}
 
-            {/* ── Step 7: Success ── */}
-            {currentStep === 7 && (
+            {/* ── Step 8: Success ── */}
+            {currentStep === 8 && (
               <SuccessStep
                 generatedLink={generatedLink || `${APP_URL}/e/sample-link`}
                 eventName={eventTitle}
@@ -780,7 +951,7 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
       </Card>
 
       {/* Navigation footer */}
-      {currentStep < 7 && (
+      {currentStep < 8 && (
         <div className="flex flex-col gap-4 pt-4">
           {stepError && (
             <div className="flex items-center justify-center gap-2 bg-destructive/10 text-destructive text-sm font-semibold p-3.5 rounded-xl border border-destructive/20 animate-in fade-in slide-in-from-bottom-2">
@@ -804,16 +975,16 @@ export function CreateEventWizard({ onBack }: CreateEventWizardProps) {
             </Button>
 
             <Button
-              onClick={() => currentStep === 6 ? submitEvent() : handleNextStep()}
+              onClick={() => currentStep === 7 ? submitEvent() : handleNextStep()}
               disabled={isSubmitting}
               className={cn(
                 "gap-2 w-auto min-w-[160px] px-6 h-12 rounded-xl font-bold text-base shadow-md transition-all hover:scale-[1.02]",
-                currentStep === 6 && "bg-green-600 hover:bg-green-700 text-white min-w-[192px]"
+                currentStep === 7 && "bg-green-600 hover:bg-green-700 text-white min-w-[192px]"
               )}
             >
               {isSubmitting ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /><span className="animate-pulse">{t(locale, "processing") || "..."}</span></>
-              ) : currentStep === 6 ? (
+              ) : currentStep === 7 ? (
                 <><Check className="h-5 w-5" />{t(locale, "publish") || "Yayımla"}</>
               ) : (
                 <>{t(locale, "next") || "İrəli"}<ArrowRight className="h-5 w-5" /></>

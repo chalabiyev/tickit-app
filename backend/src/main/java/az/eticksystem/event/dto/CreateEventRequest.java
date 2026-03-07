@@ -12,43 +12,46 @@ import java.util.List;
 @Data
 public class CreateEventRequest {
 
-    @NotBlank(message = "Название обязательно")
+    @NotBlank(message = "Tədbirin adı mütləqdir")
     private String title;
 
-    @NotBlank(message = "Описание обязательно")
+    @NotBlank(message = "Təsvir mütləqdir")
     private String description;
 
-    @NotBlank(message = "Категория обязательна")
+    @NotBlank(message = "Kateqoriya mütləqdir")
     private String category;
 
-    @NotBlank(message = "Возрастной лимит обязателен")
+    @NotBlank(message = "Yaş məhdudiyyəti mütləqdir")
     private String ageRestriction;
 
-    @NotNull(message = "Дата обязательна")
+    @NotNull(message = "Tarix mütləqdir")
     private LocalDate eventDate;
 
-    @NotNull(message = "Время начала обязательно")
+    @NotNull(message = "Başlanğıc vaxtı mütləqdir")
     private LocalTime startTime;
 
-    @NotNull(message = "Время конца обязательно")
+    @NotNull(message = "Bitmə vaxtı mütləqdir")
     private LocalTime endTime;
 
-    @NotNull(message = "Укажите тип локации (онлайн/оффлайн)")
+    @NotNull(message = "Məkanın növünü göstərin (onlayn/fiziki)")
     private Boolean isPhysical;
 
     private String venueName;
     private String address;
+    /** GPS coordinates from LocationPicker — used for Google Maps link on public page */
+    private Double lat;
+    private Double lng;
 
-    @NotNull(message = "Укажите приватность")
+    @NotNull(message = "Məxfiliyi göstərin")
     private Boolean isPrivate;
 
     private String coverImageUrl;
 
-    @NotEmpty(message = "Должен быть хотя бы один тип билета")
+    @NotEmpty(message = "Ən azı bir bilet növü olmalıdır")
     @Valid
     private List<TicketTierDto> tiers;
 
-    @NotNull(message = "Укажите тип рассадки")
+    @NotNull(message = "Oturacaq növünü göstərin")
     private Boolean isReservedSeating;
 
     @Valid
@@ -56,23 +59,34 @@ public class CreateEventRequest {
 
     private Object seatMapConfig;
     private Object ticketDesign;
+
     private List<BuyerQuestion> buyerQuestions;
+
+    private Integer maxTicketsPerOrder;
 
     private String streamUrl;
     private String streamPassword;
+
+    /** FAQ entries added in the wizard FAQ step */
+    @Valid
+    private List<FaqItem> faq;
+
+    // ── Nested DTOs ───────────────────────────────────────────────────────
 
     @Data
     public static class TicketTierDto {
         private String id;
         private String tierId;
 
-        @NotBlank
+        @NotBlank(message = "Bilet növünün adı boş ola bilməz")
         private String name;
 
-        @NotNull @Min(0)
+        @NotNull(message = "Qiymət mütləqdir")
+        @Min(value = 0, message = "Qiymət mənfi ola bilməz")
         private BigDecimal price;
 
-        @NotNull @Min(1)
+        @NotNull(message = "Miqdar mütləqdir")
+        @Min(value = 1, message = "Miqdar ən azı 1 olmalıdır")
         private Integer quantity;
 
         private String color;
@@ -80,8 +94,13 @@ public class CreateEventRequest {
 
     @Data
     public static class SeatDto {
-        @NotNull  private Integer row;
-        @NotNull  private Integer col;
-        @NotBlank private String  tierId;
+        @NotNull(message = "Sıra mütləqdir")
+        private Integer row;
+
+        @NotNull(message = "Sütun mütləqdir")
+        private Integer col;
+
+        @NotBlank(message = "Bilet növü ID-si boş ola bilməz")
+        private String tierId;
     }
 }

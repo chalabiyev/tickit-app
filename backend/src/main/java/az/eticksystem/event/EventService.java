@@ -82,6 +82,7 @@ public class EventService {
                 .ticketDesign(request.getTicketDesign())
                 .buyerQuestions(request.getBuyerQuestions())
                 .totalCapacity(totalCapacity)
+                .faq(request.getFaq() != null ? request.getFaq() : new ArrayList<>())
                 .platformFee(calculatePlatformFee(totalCapacity))
                 .shortLink(shortLink)
                 .status("PUBLISHED")
@@ -119,6 +120,7 @@ public class EventService {
         if (request.getMaxTicketsPerOrder()!= null) event.setMaxTicketsPerOrder(request.getMaxTicketsPerOrder());
         if (request.getCoverImageUrl()     != null) event.setCoverImageUrl(request.getCoverImageUrl());
         if (request.getStatus()            != null) event.setStatus(request.getStatus());
+        if (request.getFaq() != null)               event.setFaq(request.getFaq());
 
         return eventRepository.save(event);
     }
