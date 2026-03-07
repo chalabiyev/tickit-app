@@ -5,30 +5,27 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-lea
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 
-// Чиним баг с пропавшей иконкой пина в Next.js
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+// Fix missing pin icon in Next.js (known Leaflet + webpack issue)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:       "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+})
 
-// Компонент, чтобы ловить клики по карте
+// Catch map clicks and bubble up
 function ClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
   useMapEvents({
-    click(e) {
-      onMapClick(e.latlng.lat, e.latlng.lng)
-    },
+    click(e) { onMapClick(e.latlng.lat, e.latlng.lng) },
   })
   return null
 }
 
-// Компонент, чтобы карта плавно летела к новому адресу при поиске
+// Smoothly fly to new coords when address search resolves
 function MapUpdater({ center }: { center: [number, number] }) {
   const map = useMap()
-  useEffect(() => {
-    map.flyTo(center, 15)
-  }, [center, map])
+  useEffect(() => { map.flyTo(center, 15) }, [center, map])
   return null
 }
 
@@ -39,9 +36,13 @@ interface MapProps {
 
 export default function MapComponent({ position, onMapClick }: MapProps) {
   return (
-    <MapContainer center={position} zoom={13} style={{ height: "100%", width: "100%", zIndex: 0 }}>
+    <MapContainer
+      center={position}
+      zoom={13}
+      style={{ height: "100%", width: "100%", zIndex: 0 }}
+    >
       <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
+        attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <Marker position={position} />

@@ -1,29 +1,68 @@
 version: '3.8'
+
 services:
-  tickit-db:
-    image: mongo:latest
-    container_name: tickit-db
+
+  # ── MongoDB ───────────────────────────────────────────────────
+  eticksystem-db:
+    image: mongo:7
+    container_name: eticksystem-db
     restart: always
     volumes:
       - ./mongo-data:/data/db
-    # Порты не открываем наружу для безопасности!
+    # Порт наружу НЕ открываем — только бэкенд видит базу
+    networks:
+      - internal
 
-  tickit-backend:
+  # ── Backend ───────────────────────────────────────────────────
+  eticksystem-backend:
     build: ./backend
-    container_name: tickit-backend
+    container_name: eticksystem-backend
     depends_on:
-      - tickit-db
-    environment:
-      - SPRING_DATA_MONGODB_URI=mongodb://tickit-db:27017/tickit
+      - eticksystem-db
+    restart: always
+    networks:
+      - internal
+      - external
     ports:
       - "8080:8080"
     volumes:
       - ./uploads:/app/uploads
-    restart: always
+    environment:
+      # MongoDB — смотрит на контейнер по имени сервиса
+      - MONGODB_URI=mongodb://eticksystem-db:27017/eticksystem
 
-  tickit-frontend:
-    build: ./frontend
-    container_name: tickit-frontend
+      # JWT — замени на свой длинный случайный секрет!
+      - JWT_SECRET=CHANGE_ME_minimum_64_chars_random_secret_here_!!_eticksystem_2026
+
+      # CORS — домен фронтенда
+      - CORS_ORIGINS=https://eticksystem.com
+
+      # Mail — реальные данные
+      - MAIL_HOST=mail.eticksystem.com
+      - MAIL_PORT=587
+      - MAIL_USERNAME=no-reply@eticksystem.com
+      - MAIL_PASSWORD=pLs5Wt4O0k6C6c2ZlX6mZGv5V
+
+  # ── Frontend ──────────────────────────────────────────────────
+  eticksystem-frontend:
+    build:
+      context: ./frontend
+      args:
+        # Фронтенд во время сборки знает куда слать запросы
+        - NEXT_PUBLIC_API_URL=https://api.eticksystem.com
+        - NEXT_PUBLIC_APP_URL=https://eticksystem.com
+    container_name: eticksystem-frontend
+    depends_on:
+      - eticksystem-backend
+    restart: always
+    networks:
+      - external
     ports:
       - "3000:3000"
-    restart: always
+
+networks:
+  internal:
+    # Только для связи db ↔ backend, недоступна снаружи
+    internal: true
+  external:
+    # Для backend и frontend — доступна снаружи

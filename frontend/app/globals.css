@@ -3,6 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── Light theme ──────────────────────────────────────────────────────────── */
 :root {
   --background: oklch(0.985 0.002 250);
   --foreground: oklch(0.13 0.02 260);
@@ -43,45 +44,32 @@
   --warning-foreground: oklch(0.3 0.05 65);
 }
 
+/* ── Dark theme ───────────────────────────────────────────────────────────── */
 .dark {
-  /* Премиальный темно-синий/серый фон вместо грязного черного */
   --background: oklch(0.18 0.015 255);
   --foreground: oklch(0.95 0.01 255);
-  
-  /* Карточки чуть светлее фона, с легким синим оттенком */
   --card: oklch(0.22 0.02 255);
   --card-foreground: oklch(0.95 0.01 255);
-  
   --popover: oklch(0.22 0.02 255);
   --popover-foreground: oklch(0.95 0.01 255);
-  
-  /* Красивый сочный синий цвет для кнопок */
   --primary: oklch(0.65 0.2 255);
   --primary-foreground: oklch(0.99 0 0);
-  
   --secondary: oklch(0.28 0.03 255);
   --secondary-foreground: oklch(0.95 0.01 255);
-  
   --muted: oklch(0.28 0.03 255);
   --muted-foreground: oklch(0.7 0.02 255);
-  
   --accent: oklch(0.3 0.04 255);
   --accent-foreground: oklch(0.95 0.01 255);
-  
   --destructive: oklch(0.45 0.18 20);
   --destructive-foreground: oklch(0.95 0.01 20);
-  
-  /* Аккуратные, едва заметные бордеры */
   --border: oklch(0.28 0.03 255);
   --input: oklch(0.28 0.03 255);
   --ring: oklch(0.65 0.2 255);
-  
   --chart-1: oklch(0.65 0.2 255);
   --chart-2: oklch(0.65 0.18 170);
   --chart-3: oklch(0.7 0.15 50);
   --chart-4: oklch(0.6 0.2 310);
   --chart-5: oklch(0.75 0.15 90);
-  
   --sidebar: oklch(0.16 0.015 255);
   --sidebar-foreground: oklch(0.92 0.01 255);
   --sidebar-primary: oklch(0.65 0.2 255);
@@ -90,16 +78,16 @@
   --sidebar-accent-foreground: oklch(0.92 0.01 255);
   --sidebar-border: oklch(0.24 0.03 255);
   --sidebar-ring: oklch(0.65 0.2 255);
-  
   --success: oklch(0.6 0.19 155);
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.75 0.15 65);
   --warning-foreground: oklch(0.3 0.05 65);
 }
 
+/* ── Theme token mapping ──────────────────────────────────────────────────── */
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: var(--font-geist-sans), 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -142,16 +130,78 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
-    /* Добавляем легкое премиальное свечение фона */
-    background-image: 
-      radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08), transparent 25%),
-      radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08), transparent 25%);
+    /* Subtle radial gradient ambience — fixed so it doesn't scroll */
+    background-image:
+      radial-gradient(circle at 15% 50%, oklch(0.65 0.2 255 / 0.06), transparent 25%),
+      radial-gradient(circle at 85% 30%, oklch(0.6 0.2 310 / 0.06), transparent 25%);
     background-attachment: fixed;
   }
+
+  /* Smooth scrolling everywhere */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Remove tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ── Custom scrollbar ─────────────────────────────────────────────────────── */
+@layer utilities {
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.4 0.03 255 / 0.4) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: oklch(0.4 0.03 255 / 0.4);
+    border-radius: 999px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.5 0.05 255 / 0.6);
+  }
+
+  /* Hide scrollbar entirely but keep scroll functionality */
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Hidden ticket render zone (for html-to-image PDF generation) ─────────── */
+/*
+  IMPORTANT: Do NOT use opacity:0 or visibility:hidden here.
+  html-to-image requires the element to be in the DOM and painted.
+  We move it far off-screen instead so the user never sees it.
+*/
+.ticket-render-zone {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  pointer-events: none;
+  user-select: none;
 }

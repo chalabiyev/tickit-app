@@ -1,12 +1,13 @@
 {
-  "name": "my-project",
-  "version": "0.1.0",
+  "name": "eticksystem-frontend",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint ."
+    "dev":        "next dev",
+    "build":      "next build",
+    "start":      "next start",
+    "lint":       "eslint .",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
